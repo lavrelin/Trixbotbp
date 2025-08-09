@@ -1,0 +1,11 @@
+python-telegram-bot==20.7
+asyncpg==0.29.0
+SQLAlchemy==2.0.23
+alembic==1.13.1
+python-dotenv==1.0.0
+APScheduler==3.10.4
+redis==5.0.1
+pydantic==2.5.3
+aiofiles==23.2.1
+pytz==2023.3
+psycopg2-binary==2.9.9
