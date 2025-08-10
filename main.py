@@ -87,20 +87,19 @@ def main():
     application.add_handler(CommandHandler("admins", admin_handler.admins_command))
     application.add_handler(CommandHandler("user", admin_handler.user_info_command))
     
-    # Scheduler commands
+# Scheduler commands
     application.add_handler(CommandHandler("scheduler", scheduler_handler.scheduler_status))
     application.add_handler(CommandHandler("scheduler_on", scheduler_handler.scheduler_on))
     application.add_handler(CommandHandler("scheduler_off", scheduler_handler.scheduler_off))
     application.add_handler(CommandHandler("scheduler_message", scheduler_handler.scheduler_message))
-    application.add_handler(CommandHandler("scheduler_test", 
-   
-# Callback query handlers
-application.add_handler(CallbackQueryHandler(start_handler.handle_registration_callback, pattern="^reg:"))                                           
-application.add_handler(CallbackQueryHandler(menu_handler.handle_menu_callback, pattern="^menu:"))
-application.add_handler(CallbackQueryHandler(publication_handler.handle_publication_callback, pattern="^pub:"))
-application.add_handler(CallbackQueryHandler(piar_handler.handle_piar_callback, pattern="^piar:"))
-application.add_handler(CallbackQueryHandler(moderation_handler.handle_moderation_callback, pattern="^mod:"))
-application.add_handler(CallbackQueryHandler(profile_handler.handle_profile_callback, pattern="^profile:"))
+    application.add_handler(CommandHandler("scheduler_test", scheduler_handler.scheduler_test))
+    
+    # Callback query handlers
+    application.add_handler(CallbackQueryHandler(menu_handler.handle_menu_callback, pattern="^menu:"))
+    application.add_handler(CallbackQueryHandler(publication_handler.handle_publication_callback, pattern="^pub:"))
+    application.add_handler(CallbackQueryHandler(piar_handler.handle_piar_callback, pattern="^piar:"))
+    application.add_handler(CallbackQueryHandler(moderation_handler.handle_moderation_callback, pattern="^mod:"))
+    application.add_handler(CallbackQueryHandler(profile_handler.handle_profile_callback, pattern="^profile:"))
     
     # Message handlers
     application.add_handler(MessageHandler(
