@@ -130,10 +130,27 @@ async def handle_profile_callback(update: Update, context: ContextTypes.DEFAULT_
     elif action == "referral":
         await show_referral_info(update, context)
     elif action == "gender":
+        # Обработка выбора пола при регистрации
         gender_value = data[2] if len(data) > 2 else None
         await save_gender(update, context, gender_value)
     elif action == "birthdate":
         await request_birthdate(update, context)
+    elif action == "skip_birthdate" or action == "skip":
+        # Пропуск даты рождения
+        await finish_registration(update, context)
+    elif action == "back":
+        # Возврат в профиль
+        await show_profile(update, context)
+
+async def finish_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Finish registration and show main menu"""
+    from handlers.start_handler import show_main_menu
+    
+    # Clear registration data
+    context.user_data.pop('registration', None)
+    context.user_data.pop('waiting_for', None)
+    
+    await show_main_menu(update, context)
 
 async def show_user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show detailed user statistics"""
