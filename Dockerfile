@@ -1,29 +1,24 @@
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Установка системных зависимостей
 RUN apt-get update && apt-get install -y \
     gcc \
-    postgresql-client \
+    python3-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
+# Копирование и установка зависимостей
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Копирование всех файлов проекта
 COPY . .
 
-# Create directories for logs and data
-RUN mkdir -p /app/logs /app/data
-
-# Set environment variables
+# Переменные окружения
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Run the bot
+# Запуск бота
 CMD ["python", "main.py"]
