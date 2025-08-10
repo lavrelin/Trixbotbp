@@ -19,8 +19,9 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await show_budapest_menu(update, context)
     elif action == "search":
         await start_search(update, context)
-    elif action == "offers":
-        await start_offers(update, context)
+    elif action == "catalog":
+        # Открываем каталог
+        await show_catalog(update, context)
     elif action == "piar":
         await start_piar(update, context)
     elif action == "profile":
@@ -118,7 +119,7 @@ async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'anonymous': False
     }
     
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="menu:back")]]
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]]
     
     text = (
         "🕵️ *Поиск*\n\n"
@@ -137,39 +138,32 @@ async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in start_search: {e}")
         await update.callback_query.answer("Ошибка. Попробуйте позже", show_alert=True)
 
-async def start_offers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start offers post creation"""
-    context.user_data['post_data'] = {
-        'category': '📃 Предложения',
-        'subcategory': None,
-        'anonymous': False
-    }
-    
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="menu:back")]]
+async def show_catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show catalog link"""
+    keyboard = [
+        [InlineKeyboardButton("📚 Открыть каталог", url="https://t.me/trixvault")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
+    ]
     
     text = (
-        "📃 *Предложения*\n\n"
-        "Отправьте текст вашего предложения.\n"
-        "Опишите услуги, помощь или совместный досуг."
+        "📚 *Каталог TRIX*\n\n"
+        "Полный каталог услуг, товаров и предложений\n"
+        "от участников сообщества.\n\n"
+        "Нажмите кнопку ниже, чтобы перейти в каталог:"
     )
     
-    try:
-        await update.callback_query.edit_message_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-        context.user_data['waiting_for'] = 'post_text'
-    except Exception as e:
-        logger.error(f"Error in start_offers: {e}")
-        await update.callback_query.answer("Ошибка. Попробуйте позже", show_alert=True)
+    await update.callback_query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
 
 async def start_piar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start Piar form"""
     context.user_data['piar_data'] = {}
     context.user_data['waiting_for'] = 'piar_name'
     
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="menu:back")]]
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]]
     
     text = (
         "⭐️ *Пиар - Продвижение бизнеса*\n\n"
@@ -196,7 +190,7 @@ async def start_category_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         'anonymous': anonymous
     }
     
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="menu:back")]]
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:budapest")]]
     
     anon_text = " (анонимно)" if anonymous else ""
     
