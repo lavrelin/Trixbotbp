@@ -447,7 +447,7 @@ async def admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def parse_duration(duration_str: str) -> timedelta:
     """Parse duration string to timedelta"""
-    match = re.match(r'^(\d+)([mhd]), duration_str.lower())
+    match = re.match(r'^(\d+)([mhd])', duration_str.lower())
     if not match:
         return None
     
