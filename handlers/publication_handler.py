@@ -67,7 +67,12 @@ async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text input from user"""
+    # Логируем для отладки
+    logger.info(f"Text input received. waiting_for: {context.user_data.get('waiting_for')}")
+    logger.info(f"User data: {context.user_data}")
+    
     if 'waiting_for' not in context.user_data:
+        # Если нет состояния ожидания, игнорируем
         return
     
     waiting_for = context.user_data['waiting_for']
@@ -82,7 +87,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         if 'post_data' not in context.user_data:
-            context.user_data['post_data'] = {}
+            await update.message.reply_text(
+                "❌ Ошибка: данные поста не найдены.\n"
+                "Пожалуйста, начните заново с /start"
+            )
+            context.user_data.pop('waiting_for', None)
+            return
         
         context.user_data['post_data']['text'] = text
         context.user_data['post_data']['media'] = []
@@ -102,6 +112,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
+        # Очищаем состояние ожидания
         context.user_data['waiting_for'] = None
         
     elif waiting_for == 'piar_name':
@@ -125,6 +136,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif waiting_for == 'piar_description':
         from handlers.piar_handler import handle_piar_text
         await handle_piar_text(update, context, 'description', text)
+    else:
+        logger.warning(f"Unknown waiting_for state: {waiting_for}")
 
 async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle media input from user"""
@@ -338,72 +351,56 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
         [InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")]
     ]
     
-    # Send to moderation group
-    if post.media:
-        # Send with media
-        media_group = []
-        for i, media_item in enumerate(post.media[:10]):
-            if media_item['type'] == 'photo':
-                media_group.append(InputMediaPhoto(
-                    media=media_item['file_id'],
-                    caption=mod_text if i == 0 else None,
-                    parse_mode='Markdown'
-                ))
-            elif media_item['type'] == 'video':
-                media_group.append(InputMediaVideo(
-                    media=media_item['file_id'],
-                    caption=mod_text if i == 0 else None,
-                    parse_mode='Markdown'
-                ))
-        
-        if media_group:
-            messages = await bot.send_media_group(
-                chat_id=Config.MODERATION_GROUP_ID,
-                media=media_group
-            )
+    try:
+        # Send to moderation group
+        if post.media:
+            # Send with media
+            media_group = []
+            for i, media_item in enumerate(post.media[:10]):
+                if media_item['type'] == 'photo':
+                    media_group.append(InputMediaPhoto(
+                        media=media_item['file_id'],
+                        caption=mod_text if i == 0 else None,
+                        parse_mode='Markdown'
+                    ))
+                elif media_item['type'] == 'video':
+                    media_group.append(InputMediaVideo(
+                        media=media_item['file_id'],
+                        caption=mod_text if i == 0 else None,
+                        parse_mode='Markdown'
+                    ))
+            
+            if media_group:
+                messages = await bot.send_media_group(
+                    chat_id=Config.MODERATION_GROUP_ID,
+                    media=media_group
+                )
+                await bot.send_message(
+                    chat_id=Config.MODERATION_GROUP_ID,
+                    text="Действия с постом:",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+        else:
             await bot.send_message(
                 chat_id=Config.MODERATION_GROUP_ID,
-                text="Действия с постом:",
-                reply_markup=InlineKeyboardMarkup(keyboard)
+                text=mod_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
             )
-    else:
-        await bot.send_message(
-            chat_id=Config.MODERATION_GROUP_ID,
-            text=mod_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
+    except Exception as e:
+        logger.error(f"Error sending to moderation group: {e}")
+        await update.callback_query.answer(
+            "❌ Ошибка отправки на модерацию. Обратитесь к администратору.",
+            show_alert=True
         )
 
 async def handle_link_violation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle link violation"""
-    user_id = update.effective_user.id
-    
-    async with db.get_session() as session:
-        result = await session.execute(
-            select(User).where(User.id == user_id)
-        )
-        user = result.scalar_one_or_none()
-        
-        if user:
-            user.link_violations += 1
-            
-            if user.link_violations == 1:
-                mute_minutes = 5
-                message = "⚠️ Обнаружена запрещенная ссылка! Мут на 5 минут."
-            elif user.link_violations == 2:
-                mute_minutes = 60
-                message = "⚠️ Повторное нарушение! Мут на 60 минут."
-            else:
-                mute_minutes = None
-                user.banned = True
-                message = "❌ Третье нарушение! Вы заблокированы."
-            
-            if mute_minutes:
-                from datetime import timedelta
-                user.mute_until = datetime.utcnow() + timedelta(minutes=mute_minutes)
-            
-            await session.commit()
-            await update.message.reply_text(message)
+    await update.message.reply_text(
+        "⚠️ Обнаружена запрещенная ссылка!\n"
+        "Ссылки запрещены в публикациях."
+    )
+    context.user_data.pop('waiting_for', None)
 
 async def edit_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Edit post before sending"""
