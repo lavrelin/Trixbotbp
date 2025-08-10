@@ -31,9 +31,14 @@ async def handle_publication_callback(update: Update, context: ContextTypes.DEFA
     elif action == "edit":
         await edit_post(update, context)
     elif action == "cancel":
+        await cancel_post_with_reason(update, context)
+    elif action == "cancel_confirm":
         await cancel_post(update, context)
     elif action == "add_media":
         await request_media(update, context)
+    elif action == "back":
+        # Возврат к предпросмотру
+        await show_preview(update, context)
 
 async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, subcategory: str):
     """Start creating a post with selected subcategory"""
@@ -54,7 +59,7 @@ async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE
         'anonymous': False
     }
     
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="menu:back")]]
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:announcements")]]
     
     await update.callback_query.edit_message_text(
         f"🗯️ Будапешт → 🗣️ Объявления → {subcategory_names.get(subcategory)}\n\n"
@@ -67,18 +72,14 @@ async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text input from user"""
-    # Логируем для отладки
     logger.info(f"Text input received. waiting_for: {context.user_data.get('waiting_for')}")
-    logger.info(f"User data: {context.user_data}")
     
     if 'waiting_for' not in context.user_data:
-        # Если нет состояния ожидания, игнорируем
         return
     
     waiting_for = context.user_data['waiting_for']
     text = update.message.text
     
-    # Handle different input types
     if waiting_for == 'post_text':
         # Check for links
         filter_service = FilterService()
@@ -97,13 +98,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['post_data']['text'] = text
         context.user_data['post_data']['media'] = []
         
-        # Ask for media or show preview
         keyboard = [
             [
                 InlineKeyboardButton("📷 Добавить медиа", callback_data="pub:add_media"),
                 InlineKeyboardButton("👁 Предпросмотр", callback_data="pub:preview")
             ],
-            [InlineKeyboardButton("❌ Отмена", callback_data="pub:cancel")]
+            [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
         ]
         
         await update.message.reply_text(
@@ -112,32 +112,17 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
-        # Очищаем состояние ожидания
         context.user_data['waiting_for'] = None
         
-    elif waiting_for == 'piar_name':
+    elif waiting_for == 'cancel_reason':
+        # Сохраняем причину отмены
+        context.user_data['cancel_reason'] = text
+        await cancel_post(update, context)
+        
+    elif waiting_for.startswith('piar_'):
         from handlers.piar_handler import handle_piar_text
-        await handle_piar_text(update, context, 'name', text)
-    elif waiting_for == 'piar_profession':
-        from handlers.piar_handler import handle_piar_text
-        await handle_piar_text(update, context, 'profession', text)
-    elif waiting_for == 'piar_districts':
-        from handlers.piar_handler import handle_piar_text
-        await handle_piar_text(update, context, 'districts', text)
-    elif waiting_for == 'piar_phone':
-        from handlers.piar_handler import handle_piar_text
-        await handle_piar_text(update, context, 'phone', text)
-    elif waiting_for == 'piar_contacts':
-        from handlers.piar_handler import handle_piar_text
-        await handle_piar_text(update, context, 'contacts', text)
-    elif waiting_for == 'piar_price':
-        from handlers.piar_handler import handle_piar_text
-        await handle_piar_text(update, context, 'price', text)
-    elif waiting_for == 'piar_description':
-        from handlers.piar_handler import handle_piar_text
-        await handle_piar_text(update, context, 'description', text)
-    else:
-        logger.warning(f"Unknown waiting_for state: {waiting_for}")
+        field = waiting_for.replace('piar_', '')
+        await handle_piar_text(update, context, field, text)
 
 async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle media input from user"""
@@ -150,7 +135,6 @@ async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     media = []
     
     if update.message.photo:
-        # Get highest quality photo
         media.append({
             'type': 'photo',
             'file_id': update.message.photo[-1].file_id
@@ -173,7 +157,7 @@ async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             InlineKeyboardButton("📷 Добавить еще", callback_data="pub:add_media"),
             InlineKeyboardButton("👁 Предпросмотр", callback_data="pub:preview")
         ],
-        [InlineKeyboardButton("❌ Отмена", callback_data="pub:cancel")]
+        [InlineKeyboardButton("◀️ Назад", callback_data="pub:back")]
     ]
     
     await update.message.reply_text(
@@ -188,7 +172,7 @@ async def request_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Request media from user"""
     context.user_data['waiting_for'] = 'post_media'
     
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="pub:preview")]]
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="pub:preview")]]
     
     await update.callback_query.edit_message_text(
         "📷 Отправьте фото, видео или документ:",
@@ -223,31 +207,22 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Отмена", callback_data="pub:cancel")]
     ]
     
-    # Send preview with media if exists
-    if post_data.get('media'):
-        media_group = []
-        for i, media_item in enumerate(post_data['media'][:10]):  # Telegram limit
-            if media_item['type'] == 'photo':
-                media_group.append(InputMediaPhoto(
-                    media=media_item['file_id'],
-                    caption=preview_text if i == 0 else None
-                ))
-            elif media_item['type'] == 'video':
-                media_group.append(InputMediaVideo(
-                    media=media_item['file_id'],
-                    caption=preview_text if i == 0 else None
-                ))
-        
-        if media_group:
-            await update.callback_query.message.reply_media_group(media_group)
-            await update.callback_query.message.reply_text(
-                "👆 *Предпросмотр вашего поста*\n\n"
-                "Так будет выглядеть ваш пост после публикации.",
+    # Send preview
+    try:
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                f"👁 *Предпросмотр:*\n\n{preview_text}",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='Markdown'
             )
-    else:
-        await update.callback_query.edit_message_text(
+        else:
+            await update.effective_message.reply_text(
+                f"👁 *Предпросмотр:*\n\n{preview_text}",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+    except:
+        await update.effective_message.reply_text(
             f"👁 *Предпросмотр:*\n\n{preview_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
@@ -263,8 +238,16 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     if not can_post:
         minutes = remaining // 60
+        hours = minutes // 60
+        mins = minutes % 60
+        
+        if hours > 0:
+            time_str = f"{hours} ч. {mins} мин."
+        else:
+            time_str = f"{minutes} мин."
+            
         await update.callback_query.answer(
-            f"⏰ Подождите еще {minutes} минут перед следующей публикацией",
+            f"⏰ Подождите еще {time_str} перед следующей публикацией",
             show_alert=True
         )
         return
@@ -314,10 +297,21 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data.pop('post_data', None)
         context.user_data.pop('waiting_for', None)
         
+        # Calculate next post time
+        cooldown_minutes = Config.COOLDOWN_SECONDS // 60
+        hours = cooldown_minutes // 60
+        mins = cooldown_minutes % 60
+        
+        if hours > 0:
+            next_post_time = f"{hours} часа {mins} минут"
+        else:
+            next_post_time = f"{cooldown_minutes} минут"
+        
         await update.callback_query.edit_message_text(
-            "✅ *Отправлено на модерацию!*\n\n"
-            "Ваш пост будет проверен модераторами.\n"
-            "Вы получите уведомление о результате модерации.",
+            f"✅ *Отправлено на модерацию!*\n\n"
+            f"Ваш пост будет проверен модераторами.\n"
+            f"Вы получите уведомление о результате.\n\n"
+            f"⏰ Следующий пост можно отправить через {next_post_time}",
             parse_mode='Markdown'
         )
 
@@ -352,47 +346,33 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
     ]
     
     try:
-        # Send to moderation group
-        if post.media:
-            # Send with media
-            media_group = []
-            for i, media_item in enumerate(post.media[:10]):
-                if media_item['type'] == 'photo':
-                    media_group.append(InputMediaPhoto(
-                        media=media_item['file_id'],
-                        caption=mod_text if i == 0 else None,
-                        parse_mode='Markdown'
-                    ))
-                elif media_item['type'] == 'video':
-                    media_group.append(InputMediaVideo(
-                        media=media_item['file_id'],
-                        caption=mod_text if i == 0 else None,
-                        parse_mode='Markdown'
-                    ))
-            
-            if media_group:
-                messages = await bot.send_media_group(
-                    chat_id=Config.MODERATION_GROUP_ID,
-                    media=media_group
-                )
-                await bot.send_message(
-                    chat_id=Config.MODERATION_GROUP_ID,
-                    text="Действия с постом:",
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-        else:
-            await bot.send_message(
-                chat_id=Config.MODERATION_GROUP_ID,
-                text=mod_text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
+        # Try to send to moderation group
+        await bot.send_message(
+            chat_id=Config.MODERATION_GROUP_ID,
+            text=mod_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
     except Exception as e:
         logger.error(f"Error sending to moderation group: {e}")
-        await update.callback_query.answer(
-            "❌ Ошибка отправки на модерацию. Обратитесь к администратору.",
-            show_alert=True
+        # Send to user as fallback
+        await bot.send_message(
+            chat_id=user_id,
+            text="⚠️ Ошибка отправки в группу модерации.\nОбратитесь к администратору.",
         )
+
+async def cancel_post_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ask for cancellation reason"""
+    keyboard = [
+        [InlineKeyboardButton("Передумал", callback_data="pub:cancel_confirm")],
+        [InlineKeyboardButton("Ошибка в тексте", callback_data="pub:cancel_confirm")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="pub:preview")]
+    ]
+    
+    await update.callback_query.edit_message_text(
+        "❓ Укажите причину отмены:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def handle_link_violation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle link violation"""
@@ -406,7 +386,7 @@ async def edit_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Edit post before sending"""
     context.user_data['waiting_for'] = 'post_text'
     
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="pub:preview")]]
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="pub:preview")]]
     
     await update.callback_query.edit_message_text(
         "✏️ Отправьте новый текст для поста:",
@@ -417,6 +397,7 @@ async def cancel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel post creation"""
     context.user_data.pop('post_data', None)
     context.user_data.pop('waiting_for', None)
+    context.user_data.pop('cancel_reason', None)
     
     from handlers.start_handler import show_main_menu
     await show_main_menu(update, context)
