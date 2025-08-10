@@ -47,7 +47,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("🗯️ Будапешт", callback_data="menu:budapest")],
         [InlineKeyboardButton("🕵️ Поиск", callback_data="menu:search")],
-        [InlineKeyboardButton("📃 Предложения", callback_data="menu:offers")],
+        [InlineKeyboardButton("📚 Каталог", callback_data="menu:catalog")],
         [InlineKeyboardButton("⭐️ Пиар", callback_data="menu:piar")],
         [
             InlineKeyboardButton("👤 Профиль", callback_data="menu:profile"),
@@ -57,10 +57,10 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = (
         "🏠 *Главное меню*\n\n"
-        "Выберите раздел для публикации:\n\n"
+        "Выберите раздел:\n\n"
         "🗯️ *Будапешт* - объявления, новости, подслушано\n"
         "🕵️ *Поиск* - поиск чего угодно\n"
-        "📃 *Предложения* - услуги и помощь\n"
+        "📚 *Каталог* - каталог услуг и товаров\n"
         "⭐️ *Пиар* - продвижение бизнеса\n"
     )
     
