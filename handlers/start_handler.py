@@ -1,5 +1,5 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import ContextTypes
 from services.db import db
 from models import User, Gender
 from sqlalchemy import select
@@ -10,20 +10,12 @@ import string
 
 logger = logging.getLogger(__name__)
 
-# Состояния для регистрации
-GENDER, BIRTHDATE = range(2)
-
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
     user_id = update.effective_user.id
     username = update.effective_user.username
     first_name = update.effective_user.first_name
     last_name = update.effective_user.last_name
-    
-    # Check referral code
-    referral_code = None
-    if context.args and len(context.args) > 0:
-        referral_code = context.args[0]
     
     async with db.get_session() as session:
         # Check if user exists
@@ -45,90 +37,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             session.add(new_user)
             await session.commit()
-            
-            # Now request gender
-            context.user_data['registration'] = {
-                'user_id': user_id,
-                'referral_code': referral_code
-            }
-            
-            keyboard = [
-                [
-                    InlineKeyboardButton("👨 Мужской", callback_data="reg:gender:M"),
-                    InlineKeyboardButton("👩 Женский", callback_data="reg:gender:F")
-                ],
-                [InlineKeyboardButton("🤷 Другой", callback_data="reg:gender:other")],
-                [InlineKeyboardButton("⏭ Пропустить", callback_data="reg:skip")]
-            ]
-            
-            await update.effective_message.reply_text(
-                f"Привет, {first_name}! 👋\n\n"
-                "Добро пожаловать в бот TRIX!\n"
-                "Для начала укажите ваш пол:",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        else:
-            # Existing user - show main menu
-            await show_main_menu(update, context)
-
-async def handle_registration_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle registration callbacks"""
-    query = update.callback_query
-    await query.answer()
+            logger.info(f"Created new user: {user_id}")
     
-    data = query.data.split(":")
-    
-    if len(data) < 2:
-        return
-    
-    action = data[1]
-    
-    if action == "gender" and len(data) > 2:
-        gender_value = data[2]
-        await save_gender_registration(update, context, gender_value)
-    elif action == "skip":
-        await finish_registration(update, context)
-
-async def save_gender_registration(update: Update, context: ContextTypes.DEFAULT_TYPE, gender_value: str):
-    """Save gender during registration"""
-    user_id = update.effective_user.id
-    
-    gender_map = {
-        'M': Gender.MALE,
-        'F': Gender.FEMALE,
-        'other': Gender.OTHER
-    }
-    
-    gender = gender_map.get(gender_value, Gender.UNKNOWN)
-    
-    async with db.get_session() as session:
-        result = await session.execute(
-            select(User).where(User.id == user_id)
-        )
-        user = result.scalar_one_or_none()
-        
-        if user:
-            user.gender = gender
-            await session.commit()
-    
-    # Ask for birthdate
-    keyboard = [[InlineKeyboardButton("⏭ Пропустить", callback_data="reg:skip")]]
-    
-    await update.callback_query.edit_message_text(
-        "🎂 Укажите дату рождения в формате ДД.ММ.ГГГГ\n"
-        "(например: 15.03.1990)\n\n"
-        "Или нажмите 'Пропустить'",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-    
-    context.user_data['waiting_for'] = 'birthdate'
-
-async def finish_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Finish registration and show main menu"""
-    # Clear registration data
-    context.user_data.pop('registration', None)
-    context.user_data.pop('waiting_for', None)
-    
+    # Always show main menu
     await show_main_menu(update, context)
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -153,13 +64,22 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⭐️ *Пиар* - продвижение бизнеса\n"
     )
     
-    if update.callback_query:
-        await update.callback_query.edit_message_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-    else:
+    try:
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+        else:
+            await update.effective_message.reply_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+    except Exception as e:
+        logger.error(f"Error showing main menu: {e}")
+        # Если не можем отредактировать, отправим новое сообщение
         await update.effective_message.reply_text(
             text,
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -172,8 +92,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📖 *Помощь по использованию бота*\n\n"
         "🔸 /start - главное меню\n"
         "🔸 /profile - ваш профиль\n"
-        "🔸 /stats - статистика\n"
-        "🔸 /top - топ пользователей\n\n"
+        "🔸 /help - эта помощь\n\n"
         "*Как опубликовать пост:*\n"
         "1. Выберите категорию в главном меню\n"
         "2. Выберите подкатегорию (если есть)\n"
@@ -181,10 +100,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "4. Проверьте предпросмотр\n"
         "5. Отправьте на модерацию\n\n"
         "*Правила:*\n"
-        "• Между постами должно пройти минимум 94 минуты\n"
-        "• Запрещены ссылки (кроме официальных)\n"
-        "• Все посты проходят модерацию\n\n"
-        "По всем вопросам: @admin"
+        "• Между постами минимум 94 минуты\n"
+        "• Запрещены ссылки\n"
+        "• Все посты проходят модерацию\n"
     )
     
     await update.effective_message.reply_text(
