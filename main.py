@@ -95,6 +95,7 @@ def main():
     application.add_handler(CommandHandler("scheduler_test", 
    
 # Callback query handlers
+application.add_handler(CallbackQueryHandler(start_handler.handle_registration_callback, pattern="^reg:"))                                           
 application.add_handler(CallbackQueryHandler(menu_handler.handle_menu_callback, pattern="^menu:"))
 application.add_handler(CallbackQueryHandler(publication_handler.handle_publication_callback, pattern="^pub:"))
 application.add_handler(CallbackQueryHandler(piar_handler.handle_piar_callback, pattern="^piar:"))
