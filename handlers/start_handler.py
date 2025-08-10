@@ -33,21 +33,32 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = result.scalar_one_or_none()
         
         if not user:
-            # New user - request gender
+            # Create new user immediately with default values
+            new_user = User(
+                id=user_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                gender=Gender.UNKNOWN,
+                referral_code=generate_referral_code(),
+                created_at=datetime.utcnow()
+            )
+            session.add(new_user)
+            await session.commit()
+            
+            # Now request gender
             context.user_data['registration'] = {
                 'user_id': user_id,
-                'username': username,
-                'first_name': first_name,
-                'last_name': last_name,
                 'referral_code': referral_code
             }
             
             keyboard = [
                 [
-                    InlineKeyboardButton("👨 Мужской", callback_data="profile:gender:M"),
-                    InlineKeyboardButton("👩 Женский", callback_data="profile:gender:F")
+                    InlineKeyboardButton("👨 Мужской", callback_data="reg:gender:M"),
+                    InlineKeyboardButton("👩 Женский", callback_data="reg:gender:F")
                 ],
-                [InlineKeyboardButton("🤷 Другой", callback_data="profile:gender:other")]
+                [InlineKeyboardButton("🤷 Другой", callback_data="reg:gender:other")],
+                [InlineKeyboardButton("⏭ Пропустить", callback_data="reg:skip")]
             ]
             
             await update.effective_message.reply_text(
@@ -56,11 +67,69 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Для начала укажите ваш пол:",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-            return GENDER
         else:
             # Existing user - show main menu
             await show_main_menu(update, context)
-            return ConversationHandler.END
+
+async def handle_registration_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle registration callbacks"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data.split(":")
+    
+    if len(data) < 2:
+        return
+    
+    action = data[1]
+    
+    if action == "gender" and len(data) > 2:
+        gender_value = data[2]
+        await save_gender_registration(update, context, gender_value)
+    elif action == "skip":
+        await finish_registration(update, context)
+
+async def save_gender_registration(update: Update, context: ContextTypes.DEFAULT_TYPE, gender_value: str):
+    """Save gender during registration"""
+    user_id = update.effective_user.id
+    
+    gender_map = {
+        'M': Gender.MALE,
+        'F': Gender.FEMALE,
+        'other': Gender.OTHER
+    }
+    
+    gender = gender_map.get(gender_value, Gender.UNKNOWN)
+    
+    async with db.get_session() as session:
+        result = await session.execute(
+            select(User).where(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        
+        if user:
+            user.gender = gender
+            await session.commit()
+    
+    # Ask for birthdate
+    keyboard = [[InlineKeyboardButton("⏭ Пропустить", callback_data="reg:skip")]]
+    
+    await update.callback_query.edit_message_text(
+        "🎂 Укажите дату рождения в формате ДД.ММ.ГГГГ\n"
+        "(например: 15.03.1990)\n\n"
+        "Или нажмите 'Пропустить'",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    
+    context.user_data['waiting_for'] = 'birthdate'
+
+async def finish_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Finish registration and show main menu"""
+    # Clear registration data
+    context.user_data.pop('registration', None)
+    context.user_data.pop('waiting_for', None)
+    
+    await show_main_menu(update, context)
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show main menu"""
