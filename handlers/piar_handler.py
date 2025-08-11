@@ -1,4 +1,4 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, InputMediaVideo
 from telegram.ext import ContextTypes
 from config import Config
 from services.db import db
@@ -38,6 +38,11 @@ async def handle_piar_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await cancel_piar(update, context)
     elif action == "add_photo":
         await request_piar_photo(update, context)
+    elif action == "skip_photo":
+        await show_piar_preview(update, context)
+    elif action == "back":
+        # Возврат на предыдущий шаг
+        await go_back_step(update, context)
 
 async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                            field: str, value: str):
@@ -46,6 +51,9 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         context.user_data['piar_data'] = {}
     
     filter_service = FilterService()
+    
+    # Сохраняем текущий шаг для возможности возврата
+    context.user_data['piar_step'] = field
     
     # Validate and save field
     if field == 'name':
@@ -123,7 +131,8 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         context.user_data['waiting_for'] = 'piar_photo'
         
         keyboard = [
-            [InlineKeyboardButton("⏭ Пропустить", callback_data="piar:preview")],
+            [InlineKeyboardButton("⏭ Пропустить", callback_data="piar:skip_photo")],
+            [InlineKeyboardButton("◀️ Назад", callback_data="piar:back")],
             [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
         ]
         
@@ -143,7 +152,11 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
         context.user_data['waiting_for'] = f'piar_{next_step}'
         
-        keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]]
+        # Добавляем кнопку "Назад" начиная со второго шага
+        keyboard = []
+        if step_num > 1:
+            keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="piar:back")])
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
         
         await update.message.reply_text(
             f"⭐️ *Пиар - Продвижение бизнеса*\n\n"
@@ -172,27 +185,37 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    media = []
     if update.message.photo:
         photos.append(update.message.photo[-1].file_id)
-        
-        remaining = Config.MAX_PHOTOS_PIAR - len(photos)
-        
-        keyboard = [
-            [InlineKeyboardButton("👁 Предпросмотр", callback_data="piar:preview")]
-        ]
-        
-        if remaining > 0:
-            keyboard.insert(0, [
-                InlineKeyboardButton(f"📷 Добавить еще ({remaining})", 
-                                   callback_data="piar:add_photo")
-            ])
-        
-        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
-        
-        await update.message.reply_text(
-            f"✅ Фото добавлено! (Всего: {len(photos)})",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        media.append({'type': 'photo', 'file_id': update.message.photo[-1].file_id})
+    elif update.message.video:
+        photos.append(update.message.video.file_id)
+        media.append({'type': 'video', 'file_id': update.message.video.file_id})
+    
+    if 'media' not in context.user_data['piar_data']:
+        context.user_data['piar_data']['media'] = []
+    context.user_data['piar_data']['media'].extend(media)
+    
+    remaining = Config.MAX_PHOTOS_PIAR - len(photos)
+    
+    keyboard = [
+        [InlineKeyboardButton("👁 Предпросмотр", callback_data="piar:preview")]
+    ]
+    
+    if remaining > 0:
+        keyboard.insert(0, [
+            InlineKeyboardButton(f"📷 Добавить еще ({remaining})", 
+                               callback_data="piar:add_photo")
+        ])
+    
+    keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="piar:back")])
+    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
+    
+    await update.message.reply_text(
+        f"✅ Медиа добавлено! (Всего: {len(photos)})",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Request more photos"""
@@ -203,11 +226,12 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     keyboard = [
         [InlineKeyboardButton("👁 Предпросмотр", callback_data="piar:preview")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="piar:back")],
         [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
     ]
     
     await update.callback_query.edit_message_text(
-        f"📷 Отправьте еще фото (осталось: {remaining}):",
+        f"📷 Отправьте еще фото/видео (осталось: {remaining}):",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -249,16 +273,30 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Send photos if exist
     if data.get('photos'):
         for photo_id in data['photos']:
-            await update.callback_query.message.reply_photo(photo_id)
-    
-    await update.callback_query.message.reply_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
-    )
+            try:
+                await update.callback_query.message.reply_photo(photo_id)
+            except:
+                pass
     
     if update.callback_query:
-        await update.callback_query.delete_message()
+        try:
+            await update.callback_query.edit_message_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+        except:
+            await update.callback_query.message.reply_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+    else:
+        await update.effective_message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
 
 async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send piar to moderation"""
@@ -289,7 +327,7 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             piar_phone=data.get('phone'),
             piar_contacts=data.get('contacts'),
             piar_price=data.get('price'),
-            media=[{'type': 'photo', 'file_id': fid} for fid in data.get('photos', [])]
+            media=data.get('media', [])
         )
         
         session.add(post)
@@ -301,16 +339,28 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
         # Clear user data
         context.user_data.pop('piar_data', None)
         context.user_data.pop('waiting_for', None)
+        context.user_data.pop('piar_step', None)
+        
+        # Calculate next post time
+        cooldown_minutes = Config.COOLDOWN_SECONDS // 60
+        hours = cooldown_minutes // 60
+        mins = cooldown_minutes % 60
+        
+        if hours > 0:
+            next_post_time = f"{hours} часа {mins} минут"
+        else:
+            next_post_time = f"{cooldown_minutes} минут"
         
         await update.callback_query.edit_message_text(
-            "✅ *Отправлено на модерацию!*\n\n"
-            "Ваша заявка на пиар будет рассмотрена модераторами.",
+            f"✅ *Отправлено на модерацию!*\n\n"
+            f"Ваша заявка на пиар будет рассмотрена модераторами.\n\n"
+            f"⏰ Следующую заявку можно отправить через {next_post_time}",
             parse_mode='Markdown'
         )
 
 async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_TYPE,
                                  post: Post, user: User, data: dict):
-    """Send piar to moderation group"""
+    """Send piar to moderation group with media"""
     bot = context.bot
     
     text = (
@@ -333,28 +383,105 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
     )
     
     keyboard = [
-        [InlineKeyboardButton("💬 Ответить автору", url=f"tg://user?id={user.id}")]
+        [InlineKeyboardButton("💬 Написать автору", url=f"tg://user?id={user.id}")],
+        [
+            InlineKeyboardButton("✅ Опубликовать", callback_data=f"mod:approve:{post.id}"),
+            InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")
+        ]
     ]
     
-    # Send to moderation group
-    if data.get('photos'):
-        for photo_id in data['photos']:
-            await bot.send_photo(
+    try:
+        # Send media if exists
+        if data.get('media'):
+            media_group = []
+            for i, media_item in enumerate(data['media'][:10]):
+                if media_item['type'] == 'photo':
+                    media_group.append(InputMediaPhoto(
+                        media=media_item['file_id'],
+                        caption=text if i == 0 else None,
+                        parse_mode='Markdown' if i == 0 else None
+                    ))
+                elif media_item['type'] == 'video':
+                    media_group.append(InputMediaVideo(
+                        media=media_item['file_id'],
+                        caption=text if i == 0 else None,
+                        parse_mode='Markdown' if i == 0 else None
+                    ))
+            
+            if media_group:
+                await bot.send_media_group(
+                    chat_id=Config.MODERATION_GROUP_ID,
+                    media=media_group
+                )
+                # Отправляем кнопки отдельным сообщением
+                await bot.send_message(
+                    chat_id=Config.MODERATION_GROUP_ID,
+                    text="Действия:",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+        else:
+            # Если нет медиа, отправляем только текст
+            await bot.send_message(
                 chat_id=Config.MODERATION_GROUP_ID,
-                photo=photo_id
+                text=text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
             )
+    except Exception as e:
+        logger.error(f"Error sending piar to moderation: {e}")
+        # Fallback - отправляем пользователю
+        await bot.send_message(
+            chat_id=user_id,
+            text="⚠️ Ошибка отправки в группу модерации. Обратитесь к администратору."
+        )
+
+async def go_back_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Go back to previous step in piar form"""
+    current_step = context.user_data.get('piar_step')
     
-    await bot.send_message(
-        chat_id=Config.MODERATION_GROUP_ID,
-        text=text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
-    )
+    if not current_step:
+        await restart_piar_form(update, context)
+        return
+    
+    # Определяем предыдущий шаг
+    step_order = ['name', 'profession', 'districts', 'phone', 'contacts', 'price', 'description']
+    
+    try:
+        current_index = step_order.index(current_step)
+        if current_index > 0:
+            prev_step = step_order[current_index - 1]
+            
+            # Находим информацию о предыдущем шаге
+            for i, (step_field, step_name, step_text) in enumerate(PIAR_STEPS):
+                if step_field == prev_step:
+                    step_num = i + 1
+                    
+                    context.user_data['waiting_for'] = f'piar_{prev_step}'
+                    context.user_data['piar_step'] = prev_step
+                    
+                    keyboard = []
+                    if step_num > 1:
+                        keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="piar:back")])
+                    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
+                    
+                    await update.callback_query.edit_message_text(
+                        f"⭐️ *Пиар - Продвижение бизнеса*\n\n"
+                        f"Шаг {step_num} из 7\n"
+                        f"{step_text}",
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode='Markdown'
+                    )
+                    break
+        else:
+            await restart_piar_form(update, context)
+    except:
+        await restart_piar_form(update, context)
 
 async def restart_piar_form(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Restart piar form from beginning"""
     context.user_data['piar_data'] = {}
     context.user_data['waiting_for'] = 'piar_name'
+    context.user_data['piar_step'] = 'name'
     
     keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="menu:back")]]
     
@@ -370,6 +497,7 @@ async def cancel_piar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel piar creation"""
     context.user_data.pop('piar_data', None)
     context.user_data.pop('waiting_for', None)
+    context.user_data.pop('piar_step', None)
     
     from handlers.start_handler import show_main_menu
     await show_main_menu(update, context)
