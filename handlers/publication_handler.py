@@ -72,121 +72,6 @@ async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text input from user"""
-    logger.info(f"Text input received. waiting_for: {context.user_data.get('waiting_for')}")
-    
-    if 'waiting_for' not in context.user_data:
-        return
-    
-    waiting_for = context.user_data['waiting_for']
-    text = update.message.text
-    
-    if waiting_for == 'post_text':
-        # Check for links
-        filter_service = FilterService()
-        if filter_service.contains_banned_link(text) and not Config.is_moderator(update.effective_user.id):
-            await handle_link_violation(update, context)
-            return
-        
-        if 'post_data' not in context.user_data:
-            await update.message.reply_text(
-                "❌ Ошибка: данные поста не найдены.\n"
-                "Пожалуйста, начните заново с /start"
-            )
-            context.user_data.pop('waiting_for', None)
-            return
-        
-        context.user_data['post_data']['text'] = text
-        context.user_data['post_data']['media'] = []
-        
-        keyboard = [
-            [
-                InlineKeyboardButton("📷 Добавить медиа", callback_data="pub:add_media"),
-                InlineKeyboardButton("👁 Предпросмотр", callback_data="pub:preview")
-            ],
-            [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
-        ]
-        
-        await update.message.reply_text(
-            "✅ Текст сохранен!\n\n"
-            "Хотите добавить фото/видео или сразу перейти к предпросмотру?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        
-        context.user_data['waiting_for'] = None
-        
-    elif waiting_for == 'cancel_reason':
-        # Сохраняем причину отмены
-        context.user_data['cancel_reason'] = text
-        await cancel_post(update, context)
-        
-    elif waiting_for.startswith('piar_'):
-        from handlers.piar_handler import handle_piar_text
-        field = waiting_for.replace('piar_', '')
-        await handle_piar_text(update, context, field, text)
-
-# Для handlers/publication_handler.py - обновите handle_media_input:
-
-async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle media input from user"""
-    # Проверяем, что пользователь в процессе добавления медиа
-    if 'post_data' not in context.user_data:
-        return
-    
-    # Принимаем медиа даже если waiting_for не установлен (для первого медиа с текстом)
-    if 'media' not in context.user_data['post_data']:
-        context.user_data['post_data']['media'] = []
-    
-    media_added = False
-    
-    if update.message.photo:
-        # Get highest quality photo
-        context.user_data['post_data']['media'].append({
-            'type': 'photo',
-            'file_id': update.message.photo[-1].file_id
-        })
-        media_added = True
-        logger.info(f"Added photo: {update.message.photo[-1].file_id}")
-        
-    elif update.message.video:
-        context.user_data['post_data']['media'].append({
-            'type': 'video',
-            'file_id': update.message.video.file_id
-        })
-        media_added = True
-        logger.info(f"Added video: {update.message.video.file_id}")
-        
-    elif update.message.document:
-        context.user_data['post_data']['media'].append({
-            'type': 'document',
-            'file_id': update.message.document.file_id
-        })
-        media_added = True
-        logger.info(f"Added document: {update.message.document.file_id}")
-    
-    if media_added:
-        total_media = len(context.user_data['post_data']['media'])
-        
-        keyboard = [
-            [
-                InlineKeyboardButton(f"📷 Добавить еще", callback_data="pub:add_media"),
-                InlineKeyboardButton("👁 Предпросмотр", callback_data="pub:preview")
-            ],
-            [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
-        ]
-        
-        await update.message.reply_text(
-            f"✅ Медиа добавлено! (Всего: {total_media})\n\n"
-            "Добавить еще или перейти к предпросмотру?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        
-        context.user_data['waiting_for'] = None
-
-
-# Также обновите handle_text_input для обработки медиа с текстом:
-
-async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle text input from user"""
     
     # Проверяем, есть ли медиа в сообщении вместе с текстом
     has_media = update.message.photo or update.message.video or update.message.document
@@ -249,6 +134,68 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Далее идет обычная обработка текста...
+# Для handlers/publication_handler.py - обновите handle_media_input:
+
+async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle media input from user"""
+    # Проверяем, что пользователь в процессе добавления медиа
+    if 'post_data' not in context.user_data:
+        return
+    
+    # Принимаем медиа даже если waiting_for не установлен (для первого медиа с текстом)
+    if 'media' not in context.user_data['post_data']:
+        context.user_data['post_data']['media'] = []
+    
+    media_added = False
+    
+    if update.message.photo:
+        # Get highest quality photo
+        context.user_data['post_data']['media'].append({
+            'type': 'photo',
+            'file_id': update.message.photo[-1].file_id
+        })
+        media_added = True
+        logger.info(f"Added photo: {update.message.photo[-1].file_id}")
+        
+    elif update.message.video:
+        context.user_data['post_data']['media'].append({
+            'type': 'video',
+            'file_id': update.message.video.file_id
+        })
+        media_added = True
+        logger.info(f"Added video: {update.message.video.file_id}")
+        
+    elif update.message.document:
+        context.user_data['post_data']['media'].append({
+            'type': 'document',
+            'file_id': update.message.document.file_id
+        })
+        media_added = True
+        logger.info(f"Added document: {update.message.document.file_id}")
+    
+    if media_added:
+        total_media = len(context.user_data['post_data']['media'])
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(f"📷 Добавить еще", callback_data="pub:add_media"),
+                InlineKeyboardButton("👁 Предпросмотр", callback_data="pub:preview")
+            ],
+            [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
+        ]
+        
+        await update.message.reply_text(
+            f"✅ Медиа добавлено! (Всего: {total_media})\n\n"
+            "Добавить еще или перейти к предпросмотру?",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+        context.user_data['waiting_for'] = None
+
+
+# Также обновите handle_text_input для обработки медиа с текстом:
+
+
     # (остальной код функции остается без изменений)
 async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show post preview"""
