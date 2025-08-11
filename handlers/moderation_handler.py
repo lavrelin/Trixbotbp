@@ -29,6 +29,8 @@ async def handle_moderation_callback(update: Update, context: ContextTypes.DEFAU
     
     if action == "approve":
         await approve_post(update, context, post_id)
+    elif action == "approve_confirm":
+        await approve_post_confirm(update, context, post_id)
     elif action == "edit":
         await start_edit_post(update, context, post_id)
     elif action == "reject":
@@ -36,10 +38,42 @@ async def handle_moderation_callback(update: Update, context: ContextTypes.DEFAU
     elif action == "confirm_edit":
         await confirm_edit_post(update, context, post_id)
     elif action == "confirm_reject":
-        await confirm_reject_post(update, context, post_id)
+        confirm_reject_post(update, context, post_id)
+    elif action == "reject_quick":
+        # Быстрое отклонение с причиной
+        parts = query.data.split(":")
+        if len(parts) > 3:
+            reason_key = parts[3]
+            await quick_reject_post(update, context, post_id, reason_key)
+    elif action == "reject_custom":
+        await request_custom_reject_reason(update, context, post_id)
+    elif action == "back":
+        # Возврат к просмотру поста
+        await show_post_details(update, context, post_id)
+    elif action == "list":
+        # Показать список заявок
+        await show_pending_posts(update, context)
 
 async def approve_post(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
-    """Approve and publish post"""
+    """Show confirmation before approving"""
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Подтвердить публикацию", callback_data=f"mod:approve_confirm:{post_id}"),
+        ],
+        [
+            InlineKeyboardButton("◀️ Назад", callback_data=f"mod:back:{post_id}")
+        ]
+    ]
+    
+    await update.callback_query.edit_message_text(
+        "❓ *Подтверждение публикации*\n\n"
+        "Вы уверены, что хотите опубликовать этот пост?",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
+
+async def approve_post_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
+    """Actually approve and publish post"""
     moderator_id = update.effective_user.id
     
     async with db.get_session() as session:
@@ -81,23 +115,17 @@ async def approve_post(update: Update, context: ContextTypes.DEFAULT_TYPE, post_
         publish_text += f"{' '.join(post.hashtags)}\n\n"
         publish_text += Config.DEFAULT_SIGNATURE
         
-        # If anonymous, don't show author info
-        if post.anonymous:
-            author_info = "🎭 Анонимно"
-        else:
-            author_info = f"👤 @{user.username}" if user.username else f"👤 ID: {user.id}"
-        
         try:
-            # Send to channel
-            if post.media:
+            # Send to channel with media if exists
+            if post.media and len(post.media) > 0:
                 media_group = []
                 for i, media_item in enumerate(post.media[:10]):
-                    if media_item['type'] == 'photo':
+                    if media_item.get('type') == 'photo':
                         media_group.append(InputMediaPhoto(
                             media=media_item['file_id'],
                             caption=publish_text if i == 0 else None
                         ))
-                    elif media_item['type'] == 'video':
+                    elif media_item.get('type') == 'video':
                         media_group.append(InputMediaVideo(
                             media=media_item['file_id'],
                             caption=publish_text if i == 0 else None
@@ -108,7 +136,7 @@ async def approve_post(update: Update, context: ContextTypes.DEFAULT_TYPE, post_
                         chat_id=Config.TARGET_CHANNEL_ID,
                         media=media_group
                     )
-                    post.channel_message_id = messages[0].message_id
+                    post.channel_message_id = messages[0].message_id if messages else None
             else:
                 message = await context.bot.send_message(
                     chat_id=Config.TARGET_CHANNEL_ID,
@@ -147,7 +175,7 @@ async def start_edit_post(update: Update, context: ContextTypes.DEFAULT_TYPE, po
     context.user_data['editing_post_id'] = post_id
     context.user_data['waiting_for'] = 'mod_edit_text'
     
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data=f"mod:approve:{post_id}")]]
+    keyboard = [[InlineKeyboardButton("◀️ Отмена", callback_data=f"mod:back:{post_id}")]]
     
     await update.callback_query.edit_message_reply_markup(reply_markup=None)
     await update.callback_query.message.reply_text(
@@ -162,7 +190,6 @@ async def start_edit_post(update: Update, context: ContextTypes.DEFAULT_TYPE, po
 async def start_reject_post(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
     """Start rejecting post"""
     context.user_data['rejecting_post_id'] = post_id
-    context.user_data['waiting_for'] = 'mod_reject_reason'
     
     keyboard = [
         [
@@ -173,7 +200,8 @@ async def start_reject_post(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             InlineKeyboardButton("Нарушение правил", callback_data=f"mod:reject_quick:{post_id}:rules"),
             InlineKeyboardButton("Оскорбления", callback_data=f"mod:reject_quick:{post_id}:insult")
         ],
-        [InlineKeyboardButton("✍️ Своя причина", callback_data=f"mod:reject_custom:{post_id}")]
+        [InlineKeyboardButton("✍️ Своя причина", callback_data=f"mod:reject_custom:{post_id}")],
+        [InlineKeyboardButton("◀️ Назад", callback_data=f"mod:back:{post_id}")]
     ]
     
     await update.callback_query.edit_message_reply_markup(reply_markup=None)
@@ -184,26 +212,18 @@ async def start_reject_post(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         parse_mode='Markdown'
     )
 
-async def confirm_reject_post(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
-    """Confirm post rejection with reason"""
+async def quick_reject_post(update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                            post_id: int, reason_key: str):
+    """Quick reject with predefined reason"""
     moderator_id = update.effective_user.id
     
-    # Get reason from callback data or user data
-    if ":" in update.callback_query.data:
-        parts = update.callback_query.data.split(":")
-        if len(parts) > 3:
-            reason_key = parts[3]
-            reasons = {
-                'spam': 'Спам',
-                'ads': 'Недопустимая реклама',
-                'rules': 'Нарушение правил сообщества',
-                'insult': 'Оскорбления или неприемлемый контент'
-            }
-            reason = reasons.get(reason_key, 'Нарушение правил')
-        else:
-            reason = context.user_data.get('reject_reason', 'Нарушение правил')
-    else:
-        reason = context.user_data.get('reject_reason', 'Нарушение правил')
+    reasons = {
+        'spam': 'Спам',
+        'ads': 'Недопустимая реклама',
+        'rules': 'Нарушение правил сообщества',
+        'insult': 'Оскорбления или неприемлемый контент'
+    }
+    reason = reasons.get(reason_key, 'Нарушение правил')
     
     async with db.get_session() as session:
         # Get post
@@ -252,10 +272,99 @@ async def confirm_reject_post(update: Update, context: ContextTypes.DEFAULT_TYPE
                  f"Если хотите — отредактируйте и отправьте снова.",
             parse_mode='Markdown'
         )
+
+async def request_custom_reject_reason(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
+    """Request custom rejection reason"""
+    context.user_data['rejecting_post_id'] = post_id
+    context.user_data['waiting_for'] = 'mod_reject_reason'
     
-    # Clear user data
-    context.user_data.pop('rejecting_post_id', None)
-    context.user_data.pop('reject_reason', None)
+    keyboard = [[InlineKeyboardButton("◀️ Отмена", callback_data=f"mod:back:{post_id}")]]
+    
+    await update.callback_query.edit_message_text(
+        "✍️ *Укажите причину отклонения*\n\n"
+        "Напишите свою причину:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
+
+async def show_post_details(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
+    """Show post details again"""
+    async with db.get_session() as session:
+        result = await session.execute(
+            select(Post).where(Post.id == post_id)
+        )
+        post = result.scalar_one_or_none()
+        
+        if not post:
+            await update.callback_query.answer("❌ Пост не найден", show_alert=True)
+            return
+        
+        # Get user
+        user_result = await session.execute(
+            select(User).where(User.id == post.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        
+        # Build message
+        text = (
+            f"📝 *Заявка на публикацию*\n\n"
+            f"👤 Автор: @{user.username or 'no_username'} (ID: {user.id})\n"
+            f"📅 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"📂 Категория: {post.category}"
+        )
+        
+        if post.subcategory:
+            text += f" → {post.subcategory}"
+        
+        if post.anonymous:
+            text += "\n🎭 *Анонимно*"
+        
+        text += f"\n\n📝 Текст:\n{post.text}\n\n"
+        text += f"🏷 Хештеги: {' '.join(post.hashtags)}"
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Опубликовать", callback_data=f"mod:approve:{post.id}"),
+                InlineKeyboardButton("✏️ Редактировать", callback_data=f"mod:edit:{post.id}")
+            ],
+            [
+                InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}"),
+                InlineKeyboardButton("📋 К списку", callback_data="mod:list")
+            ]
+        ]
+        
+        await update.callback_query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+
+async def show_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show list of pending posts"""
+    async with db.get_session() as session:
+        result = await session.execute(
+            select(Post)
+            .where(Post.status == PostStatus.PENDING)
+            .order_by(Post.created_at.desc())
+            .limit(10)
+        )
+        posts = result.scalars().all()
+        
+        if not posts:
+            await update.callback_query.answer("📭 Нет заявок на модерацию", show_alert=True)
+            return
+        
+        text = "📋 *Заявки на модерацию:*\n\n"
+        
+        for i, post in enumerate(posts, 1):
+            text += f"{i}. {post.category} - {post.created_at.strftime('%H:%M')}\n"
+        
+        text += "\n_Показаны последние 10 заявок_"
+        
+        await update.callback_query.edit_message_text(
+            text,
+            parse_mode='Markdown'
+        )
 
 async def handle_mod_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text input during moderation"""
@@ -273,12 +382,31 @@ async def handle_mod_text_input(update: Update, context: ContextTypes.DEFAULT_TY
     elif waiting_for == 'mod_reject_reason':
         post_id = context.user_data.get('rejecting_post_id')
         if post_id:
-            context.user_data['reject_reason'] = text
-            await confirm_reject_post(update, context, post_id)
+            await reject_with_custom_reason(update, context, post_id, text)
 
 async def save_edited_text(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                            post_id: int, new_text: str):
-    """Save edited text and publish"""
+    """Save edited text and ask for confirmation"""
+    context.user_data['edited_text'] = new_text
+    context.user_data['editing_post_id'] = post_id
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Подтвердить и опубликовать", callback_data=f"mod:confirm_edit:{post_id}")],
+        [InlineKeyboardButton("◀️ Отмена", callback_data=f"mod:back:{post_id}")]
+    ]
+    
+    await update.message.reply_text(
+        f"📝 *Новый текст:*\n\n{new_text}\n\n"
+        "Подтвердить изменения и опубликовать?",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
+    
+    context.user_data.pop('waiting_for', None)
+
+async def reject_with_custom_reason(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                    post_id: int, reason: str):
+    """Reject post with custom reason"""
     moderator_id = update.effective_user.id
     
     async with db.get_session() as session:
@@ -292,91 +420,37 @@ async def save_edited_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
             await update.message.reply_text("❌ Пост не найден")
             return
         
+        # Update post status
+        post.status = PostStatus.REJECTED
+        post.moderated_by = moderator_id
+        post.moderated_at = datetime.utcnow()
+        
         # Create moderation log
         log = ModerationLog(
             post_id=post_id,
             moderator_id=moderator_id,
-            action=ModerationAction.EDIT,
-            new_text=new_text
+            action=ModerationAction.REJECT,
+            reason=reason
         )
         session.add(log)
-        
-        # Update post
-        post.text = new_text
-        post.status = PostStatus.EDITED
-        
         await session.commit()
         
-        # Now approve and publish
-        await approve_post_after_edit(update, context, post)
-    
-    # Clear user data
-    context.user_data.pop('editing_post_id', None)
-    context.user_data.pop('waiting_for', None)
-
-async def approve_post_after_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, post: Post):
-    """Approve post after editing"""
-    # Publish to channel
-    publish_text = f"{post.text}\n\n"
-    publish_text += f"{' '.join(post.hashtags)}\n\n"
-    publish_text += Config.DEFAULT_SIGNATURE
-    
-    try:
-        # Send to channel
-        if post.media:
-            media_group = []
-            for i, media_item in enumerate(post.media[:10]):
-                if media_item['type'] == 'photo':
-                    media_group.append(InputMediaPhoto(
-                        media=media_item['file_id'],
-                        caption=publish_text if i == 0 else None
-                    ))
-                elif media_item['type'] == 'video':
-                    media_group.append(InputMediaVideo(
-                        media=media_item['file_id'],
-                        caption=publish_text if i == 0 else None
-                    ))
-            
-            if media_group:
-                messages = await context.bot.send_media_group(
-                    chat_id=Config.TARGET_CHANNEL_ID,
-                    media=media_group
-                )
-                post.channel_message_id = messages[0].message_id
-        else:
-            message = await context.bot.send_message(
-                chat_id=Config.TARGET_CHANNEL_ID,
-                text=publish_text
-            )
-            post.channel_message_id = message.message_id
-        
-        # Update post status
-        async with db.get_session() as session:
-            result = await session.execute(
-                select(Post).where(Post.id == post.id)
-            )
-            db_post = result.scalar_one_or_none()
-            db_post.status = PostStatus.APPROVED
-            db_post.channel_message_id = post.channel_message_id
-            db_post.moderated_at = datetime.utcnow()
-            await session.commit()
-        
+        # Notify moderator
         await update.message.reply_text(
-            f"✅ *Пост отредактирован и опубликован!*\n\n"
-            f"ID поста в канале: {post.channel_message_id}",
+            f"❌ *Пост отклонен*\n\n"
+            f"Причина: {reason}",
             parse_mode='Markdown'
         )
         
         # Notify user
-        channel_link = f"https://t.me/snghu/{post.channel_message_id}"
         await context.bot.send_message(
             chat_id=post.user_id,
-            text=f"✅ Ваш пост опубликован в канале @snghu!\n"
-                 f"(с редактированием модератора)\n\n"
-                 f"Ссылка: {channel_link}\n"
-                 f"Спасибо! 🗯️"
+            text=f"❌ Ваш пост отклонён\n\n"
+                 f"Причина: *{reason}*\n\n"
+                 f"Если хотите — отредактируйте и отправьте снова.",
+            parse_mode='Markdown'
         )
-        
-    except Exception as e:
-        logger.error(f"Error publishing edited post {post.id}: {e}")
-        await update.message.reply_text("❌ Ошибка при публикации")
+    
+    # Clear user data
+    context.user_data.pop('rejecting_post_id', None)
+    context.user_data.pop('waiting_for', None)
