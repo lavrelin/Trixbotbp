@@ -128,6 +128,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
     # Show next step or photo request
     if next_step == 'photos':
         context.user_data['piar_data']['photos'] = []
+        context.user_data['piar_data']['media'] = []
         context.user_data['waiting_for'] = 'piar_photo'
         
         keyboard = [
@@ -138,7 +139,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
         await update.message.reply_text(
             "📷 *Фотографии*\n\n"
-            "Отправьте до 3 фотографий для вашего объявления\n"
+            "Отправьте до 3 фотографий или видео для вашего объявления\n"
             "или нажмите 'Пропустить'",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
@@ -177,7 +178,11 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'photos' not in context.user_data['piar_data']:
         context.user_data['piar_data']['photos'] = []
     
+    if 'media' not in context.user_data['piar_data']:
+        context.user_data['piar_data']['media'] = []
+    
     photos = context.user_data['piar_data']['photos']
+    media = context.user_data['piar_data']['media']
     
     if len(photos) >= Config.MAX_PHOTOS_PIAR:
         await update.message.reply_text(
@@ -185,37 +190,36 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    media = []
+    media_added = False
     if update.message.photo:
         photos.append(update.message.photo[-1].file_id)
         media.append({'type': 'photo', 'file_id': update.message.photo[-1].file_id})
+        media_added = True
     elif update.message.video:
         photos.append(update.message.video.file_id)
         media.append({'type': 'video', 'file_id': update.message.video.file_id})
+        media_added = True
     
-    if 'media' not in context.user_data['piar_data']:
-        context.user_data['piar_data']['media'] = []
-    context.user_data['piar_data']['media'].extend(media)
-    
-    remaining = Config.MAX_PHOTOS_PIAR - len(photos)
-    
-    keyboard = [
-        [InlineKeyboardButton("👁 Предпросмотр", callback_data="piar:preview")]
-    ]
-    
-    if remaining > 0:
-        keyboard.insert(0, [
-            InlineKeyboardButton(f"📷 Добавить еще ({remaining})", 
-                               callback_data="piar:add_photo")
-        ])
-    
-    keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="piar:back")])
-    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
-    
-    await update.message.reply_text(
-        f"✅ Медиа добавлено! (Всего: {len(photos)})",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    if media_added:
+        remaining = Config.MAX_PHOTOS_PIAR - len(photos)
+        
+        keyboard = [
+            [InlineKeyboardButton("👁 Предпросмотр", callback_data="piar:preview")]
+        ]
+        
+        if remaining > 0:
+            keyboard.insert(0, [
+                InlineKeyboardButton(f"📷 Добавить еще ({remaining})", 
+                                   callback_data="piar:add_photo")
+            ])
+        
+        keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="piar:back")])
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
+        
+        await update.message.reply_text(
+            f"✅ Медиа добавлено! (Всего: {len(photos)})",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Request more photos"""
@@ -257,7 +261,7 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"📝 *Описание:*\n{data.get('description')}\n\n"
     
     if data.get('photos'):
-        text += f"📷 Фотографий: {len(data['photos'])}\n\n"
+        text += f"📷 Медиа файлов: {len(data['photos'])}\n\n"
     
     text += "#Пиар #БизнесБудапешт\n\n"
     text += Config.DEFAULT_SIGNATURE
