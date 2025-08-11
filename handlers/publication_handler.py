@@ -315,6 +315,8 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode='Markdown'
         )
 
+# Для handlers/publication_handler.py - замените функцию send_to_moderation_group:
+
 async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                                    post: Post, user: User):
     """Send post to moderation group with media"""
@@ -334,6 +336,10 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
     if post.anonymous:
         mod_text += "\n🎭 *Анонимно*"
     
+    # Добавляем информацию о медиа
+    if post.media and len(post.media) > 0:
+        mod_text += f"\n📎 Медиа: {len(post.media)} файл(ов)"
+    
     mod_text += f"\n\n📝 Текст:\n{post.text}\n\n"
     mod_text += f"🏷 Хештеги: {' '.join(post.hashtags)}"
     
@@ -342,62 +348,49 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
             InlineKeyboardButton("✅ Опубликовать", callback_data=f"mod:approve:{post.id}"),
             InlineKeyboardButton("✏️ Редактировать", callback_data=f"mod:edit:{post.id}")
         ],
-        [
-            InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}"),
-            InlineKeyboardButton("◀️ К заявкам", callback_data="mod:list")
-        ]
+        [InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")]
     ]
     
     try:
-        # Send with media if exists
+        # Сначала отправляем медиа, если есть
         if post.media and len(post.media) > 0:
-            media_group = []
-            
-            for i, media_item in enumerate(post.media[:10]):  # Telegram limit
-                if media_item.get('type') == 'photo':
-                    media_group.append(InputMediaPhoto(
-                        media=media_item['file_id'],
-                        caption=mod_text if i == 0 else None,
-                        parse_mode='Markdown' if i == 0 else None
-                    ))
-                elif media_item.get('type') == 'video':
-                    media_group.append(InputMediaVideo(
-                        media=media_item['file_id'],
-                        caption=mod_text if i == 0 else None,
-                        parse_mode='Markdown' if i == 0 else None
-                    ))
-            
-            if media_group:
-                # Отправляем медиа группу
-                messages = await bot.send_media_group(
-                    chat_id=Config.MODERATION_GROUP_ID,
-                    media=media_group
-                )
-                # Отправляем кнопки отдельным сообщением
-                await bot.send_message(
-                    chat_id=Config.MODERATION_GROUP_ID,
-                    text="Действия с постом:",
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-                
-                # Сохраняем ID сообщения для дальнейшей работы
-                if messages:
-                    post.moderation_message_id = messages[0].message_id
-        else:
-            # Если нет медиа, отправляем только текст с кнопками
-            message = await bot.send_message(
-                chat_id=Config.MODERATION_GROUP_ID,
-                text=mod_text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
-            post.moderation_message_id = message.message_id
+            # Отправляем каждое медиа отдельно для лучшего отображения
+            for media_item in post.media:
+                try:
+                    if media_item.get('type') == 'photo':
+                        await bot.send_photo(
+                            chat_id=Config.MODERATION_GROUP_ID,
+                            photo=media_item['file_id']
+                        )
+                    elif media_item.get('type') == 'video':
+                        await bot.send_video(
+                            chat_id=Config.MODERATION_GROUP_ID,
+                            video=media_item['file_id']
+                        )
+                    elif media_item.get('type') == 'document':
+                        await bot.send_document(
+                            chat_id=Config.MODERATION_GROUP_ID,
+                            document=media_item['file_id']
+                        )
+                except Exception as e:
+                    logger.error(f"Error sending media: {e}")
+        
+        # Затем отправляем текст с кнопками
+        message = await bot.send_message(
+            chat_id=Config.MODERATION_GROUP_ID,
+            text=mod_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+        
+        # Сохраняем ID сообщения
+        post.moderation_message_id = message.message_id
             
     except Exception as e:
         logger.error(f"Error sending to moderation group: {e}")
         # Fallback - уведомляем пользователя об ошибке
         await bot.send_message(
-            chat_id=user_id,
+            chat_id=user.id,
             text=(
                 "⚠️ Ошибка отправки в группу модерации.\n\n"
                 "Возможные причины:\n"
@@ -406,6 +399,79 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
                 "• Неверный ID группы\n\n"
                 "Обратитесь к администратору."
             )
+        )
+
+
+# Для handlers/piar_handler.py - замените функцию send_piar_to_mod_group:
+
+async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                 post: Post, user: User, data: dict):
+    """Send piar to moderation group with media"""
+    bot = context.bot
+    
+    text = (
+        f"⭐️ *Новая заявка ПИАР*\n\n"
+        f"👤 Автор: @{user.username or 'no_username'} (ID: {user.id})\n"
+        f"📅 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+        f"*Данные:*\n"
+        f"👤 Имя: {data.get('name')}\n"
+        f"💼 Профессия: {data.get('profession')}\n"
+        f"📍 Районы: {', '.join(data.get('districts', []))}\n"
+    )
+    
+    if data.get('phone'):
+        text += f"📞 Телефон: {data.get('phone')}\n"
+    
+    text += (
+        f"📱 Контакты: {', '.join(data.get('contacts', []))}\n"
+        f"💰 Цена: {data.get('price')}\n"
+    )
+    
+    # Добавляем информацию о медиа
+    if data.get('media') and len(data['media']) > 0:
+        text += f"📎 Медиа: {len(data['media'])} файл(ов)\n"
+    
+    text += f"\n📝 Описание:\n{data.get('description')}"
+    
+    keyboard = [
+        [InlineKeyboardButton("💬 Написать автору", url=f"tg://user?id={user.id}")],
+        [
+            InlineKeyboardButton("✅ Опубликовать", callback_data=f"mod:approve:{post.id}"),
+            InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")
+        ]
+    ]
+    
+    try:
+        # Сначала отправляем все медиа по отдельности
+        if data.get('media') and len(data['media']) > 0:
+            for media_item in data['media']:
+                try:
+                    if media_item.get('type') == 'photo':
+                        await bot.send_photo(
+                            chat_id=Config.MODERATION_GROUP_ID,
+                            photo=media_item['file_id']
+                        )
+                    elif media_item.get('type') == 'video':
+                        await bot.send_video(
+                            chat_id=Config.MODERATION_GROUP_ID,
+                            video=media_item['file_id']
+                        )
+                except Exception as e:
+                    logger.error(f"Error sending piar media: {e}")
+        
+        # Затем отправляем текст с кнопками
+        await bot.send_message(
+            chat_id=Config.MODERATION_GROUP_ID,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+            
+    except Exception as e:
+        logger.error(f"Error sending piar to moderation: {e}")
+        await bot.send_message(
+            chat_id=user.id,
+            text="⚠️ Ошибка отправки в группу модерации.\nОбратитесь к администратору."
         )
 
 async def cancel_post_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
