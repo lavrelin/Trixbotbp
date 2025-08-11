@@ -378,9 +378,14 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
     
     text += (
         f"📱 Контакты: {', '.join(data.get('contacts', []))}\n"
-        f"💰 Цена: {data.get('price')}\n\n"
-        f"📝 Описание:\n{data.get('description')}"
+        f"💰 Цена: {data.get('price')}\n"
     )
+    
+    # Добавляем информацию о медиа
+    if data.get('media') and len(data['media']) > 0:
+        text += f"📎 Медиа: {len(data['media'])} файл(ов)\n"
+    
+    text += f"\n📝 Описание:\n{data.get('description')}"
     
     keyboard = [
         [InlineKeyboardButton("💬 Написать автору", url=f"tg://user?id={user.id}")],
@@ -391,48 +396,36 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
     ]
     
     try:
-        # Send media if exists
-        if data.get('media'):
-            media_group = []
-            for i, media_item in enumerate(data['media'][:10]):
-                if media_item['type'] == 'photo':
-                    media_group.append(InputMediaPhoto(
-                        media=media_item['file_id'],
-                        caption=text if i == 0 else None,
-                        parse_mode='Markdown' if i == 0 else None
-                    ))
-                elif media_item['type'] == 'video':
-                    media_group.append(InputMediaVideo(
-                        media=media_item['file_id'],
-                        caption=text if i == 0 else None,
-                        parse_mode='Markdown' if i == 0 else None
-                    ))
+        # Сначала отправляем все медиа по отдельности
+        if data.get('media') and len(data['media']) > 0:
+            for media_item in data['media']:
+                try:
+                    if media_item.get('type') == 'photo':
+                        await bot.send_photo(
+                            chat_id=Config.MODERATION_GROUP_ID,
+                            photo=media_item['file_id']
+                        )
+                    elif media_item.get('type') == 'video':
+                        await bot.send_video(
+                            chat_id=Config.MODERATION_GROUP_ID,
+                            video=media_item['file_id']
+                        )
+                except Exception as e:
+                    logger.error(f"Error sending piar media: {e}")
+        
+        # Затем отправляем текст с кнопками
+        await bot.send_message(
+            chat_id=Config.MODERATION_GROUP_ID,
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
             
-            if media_group:
-                await bot.send_media_group(
-                    chat_id=Config.MODERATION_GROUP_ID,
-                    media=media_group
-                )
-                # Отправляем кнопки отдельным сообщением
-                await bot.send_message(
-                    chat_id=Config.MODERATION_GROUP_ID,
-                    text="Действия:",
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-        else:
-            # Если нет медиа, отправляем только текст
-            await bot.send_message(
-                chat_id=Config.MODERATION_GROUP_ID,
-                text=text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
     except Exception as e:
         logger.error(f"Error sending piar to moderation: {e}")
-        # Fallback - отправляем пользователю
         await bot.send_message(
-            chat_id=user_id,
-            text="⚠️ Ошибка отправки в группу модерации. Обратитесь к администратору."
+            chat_id=user.id,
+            text="⚠️ Ошибка отправки в группу модерации.\nОбратитесь к администратору."
         )
 
 async def go_back_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
