@@ -124,61 +124,132 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         field = waiting_for.replace('piar_', '')
         await handle_piar_text(update, context, field, text)
 
+# Для handlers/publication_handler.py - обновите handle_media_input:
+
 async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle media input from user"""
-    if 'waiting_for' not in context.user_data or context.user_data['waiting_for'] != 'post_media':
+    # Проверяем, что пользователь в процессе добавления медиа
+    if 'post_data' not in context.user_data:
         return
     
-    if 'post_data' not in context.user_data:
-        context.user_data['post_data'] = {'media': []}
+    # Принимаем медиа даже если waiting_for не установлен (для первого медиа с текстом)
+    if 'media' not in context.user_data['post_data']:
+        context.user_data['post_data']['media'] = []
     
-    media = []
+    media_added = False
     
     if update.message.photo:
-        media.append({
+        # Get highest quality photo
+        context.user_data['post_data']['media'].append({
             'type': 'photo',
             'file_id': update.message.photo[-1].file_id
         })
+        media_added = True
+        logger.info(f"Added photo: {update.message.photo[-1].file_id}")
+        
     elif update.message.video:
-        media.append({
+        context.user_data['post_data']['media'].append({
             'type': 'video',
             'file_id': update.message.video.file_id
         })
+        media_added = True
+        logger.info(f"Added video: {update.message.video.file_id}")
+        
     elif update.message.document:
-        media.append({
+        context.user_data['post_data']['media'].append({
             'type': 'document',
             'file_id': update.message.document.file_id
         })
+        media_added = True
+        logger.info(f"Added document: {update.message.document.file_id}")
     
-    context.user_data['post_data']['media'].extend(media)
-    
-    keyboard = [
-        [
-            InlineKeyboardButton("📷 Добавить еще", callback_data="pub:add_media"),
-            InlineKeyboardButton("👁 Предпросмотр", callback_data="pub:preview")
-        ],
-        [InlineKeyboardButton("◀️ Назад", callback_data="pub:back")]
-    ]
-    
-    await update.message.reply_text(
-        f"✅ Медиа добавлено! (Всего: {len(context.user_data['post_data']['media'])})\n\n"
-        "Добавить еще или перейти к предпросмотру?",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-    
-    context.user_data['waiting_for'] = None
+    if media_added:
+        total_media = len(context.user_data['post_data']['media'])
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(f"📷 Добавить еще", callback_data="pub:add_media"),
+                InlineKeyboardButton("👁 Предпросмотр", callback_data="pub:preview")
+            ],
+            [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
+        ]
+        
+        await update.message.reply_text(
+            f"✅ Медиа добавлено! (Всего: {total_media})\n\n"
+            "Добавить еще или перейти к предпросмотру?",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+        context.user_data['waiting_for'] = None
 
-async def request_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Request media from user"""
-    context.user_data['waiting_for'] = 'post_media'
-    
-    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="pub:preview")]]
-    
-    await update.callback_query.edit_message_text(
-        "📷 Отправьте фото, видео или документ:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
 
+# Также обновите handle_text_input для обработки медиа с текстом:
+
+async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle text input from user"""
+    
+    # Проверяем, есть ли медиа в сообщении вместе с текстом
+    has_media = update.message.photo or update.message.video or update.message.document
+    
+    # Если есть медиа и текст вместе (caption)
+    if has_media and update.message.caption:
+        text = update.message.caption
+        
+        # Если ждем текст поста
+        if context.user_data.get('waiting_for') == 'post_text':
+            # Сохраняем текст
+            if 'post_data' not in context.user_data:
+                context.user_data['post_data'] = {}
+            
+            context.user_data['post_data']['text'] = text
+            context.user_data['post_data']['media'] = []
+            
+            # Сохраняем медиа
+            if update.message.photo:
+                context.user_data['post_data']['media'].append({
+                    'type': 'photo',
+                    'file_id': update.message.photo[-1].file_id
+                })
+            elif update.message.video:
+                context.user_data['post_data']['media'].append({
+                    'type': 'video',
+                    'file_id': update.message.video.file_id
+                })
+            elif update.message.document:
+                context.user_data['post_data']['media'].append({
+                    'type': 'document',
+                    'file_id': update.message.document.file_id
+                })
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton("📷 Добавить еще медиа", callback_data="pub:add_media"),
+                    InlineKeyboardButton("👁 Предпросмотр", callback_data="pub:preview")
+                ],
+                [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
+            ]
+            
+            await update.message.reply_text(
+                "✅ Текст и медиа сохранены!\n\n"
+                "Хотите добавить еще медиа или перейти к предпросмотру?",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            
+            context.user_data['waiting_for'] = None
+            return
+    
+    # Если только текст без медиа
+    if 'waiting_for' not in context.user_data:
+        return
+    
+    waiting_for = context.user_data['waiting_for']
+    text = update.message.text if update.message.text else update.message.caption
+    
+    if not text:
+        return
+    
+    # Далее идет обычная обработка текста...
+    # (остальной код функции остается без изменений)
 async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show post preview"""
     if 'post_data' not in context.user_data:
