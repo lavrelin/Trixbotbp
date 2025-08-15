@@ -43,15 +43,16 @@ async def handle_publication_callback(update: Update, context: ContextTypes.DEFA
 async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, subcategory: str):
     """Start creating a post with selected subcategory"""
     subcategory_names = {
-        'work': 'ð·ââï¸ Ð Ð°Ð±Ð¾ÑÐ°',
-        'rent': 'ð  ÐÑÐµÐ½Ð´Ð°',
-        'buy': 'ð» ÐÑÐ¿Ð»Ñ',
-        'sell': 'ðº ÐÑÐ¾Ð´Ð°Ð¼',
-        'events': 'ð Ð¡Ð¾Ð±ÑÑÐ¸Ñ',
-        'free': 'ð¦ ÐÑÐ´Ð°Ð¼ Ð´Ð°ÑÐ¾Ð¼',
-        'important': 'ðªï¸ ÐÐ°Ð¶Ð½Ð¾',
-        'other': 'â ÐÑÑÐ³Ð¾Ðµ'
-    }
+       subcategory_names = {
+    'work': '👷‍♀️ Работа',
+    'rent': '🏠 Аренда',
+    'buy': '🔻 Куплю',
+    'sell': '🔺 Продам',
+    'events': '🎉 События',
+    'free': '📦 Отдам даром',
+    'important': '🌪️ Важно',
+    'other': '❔ Другое'
+}
     
     context.user_data['post_data'] = {
         'category': 'ð¯ï¸ ÐÑÐ´Ð°Ð¿ÐµÑÑ',
