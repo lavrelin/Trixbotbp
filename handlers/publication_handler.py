@@ -62,12 +62,12 @@ async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     keyboard = [[InlineKeyboardButton("âï¸ ÐÐ°Ð·Ð°Ð´", callback_data="menu:announcements")]]
     
-    await update.callback_query.edit_message_text(
-        f"ð¯ï¸ ÐÑÐ´Ð°Ð¿ÐµÑÑ â ð£ï¸ ÐÐ±ÑÑÐ²Ð»ÐµÐ½Ð¸Ñ â {subcategory_names.get(subcategory)}\n\n"
-        "ÐÑÐ¿ÑÐ°Ð²ÑÑÐµ ÑÐµÐºÑÑ Ð²Ð°ÑÐµÐ³Ð¾ Ð¾Ð±ÑÑÐ²Ð»ÐµÐ½Ð¸Ñ Ð¸/Ð¸Ð»Ð¸ ÑÐ¾ÑÐ¾/Ð²Ð¸Ð´ÐµÐ¾:",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
-    )
+await update.callback_query.edit_message_text(
+    f"🗯️ Будапешт → 📨 Объявления → {subcategory_names.get(subcategory)}\n\n"
+    "Отправьте текст вашего объявления и/или фото/видео:",
+    reply_markup=InlineKeyboardMarkup(keyboard),
+    parse_mode='Markdown'
+)
     
     context.user_data['waiting_for'] = 'post_text'
 
@@ -121,11 +121,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("âï¸ ÐÐ°Ð·Ð°Ð´", callback_data="menu:back")]
             ]
             
-            await update.message.reply_text(
-                "â Ð¢ÐµÐºÑÑ Ð¸ Ð¼ÐµÐ´Ð¸Ð° ÑÐ¾ÑÑÐ°Ð½ÐµÐ½Ñ!\n\n"
-                "Ð¥Ð¾ÑÐ¸ÑÐµ Ð´Ð¾Ð±Ð°Ð²Ð¸ÑÑ ÐµÑÐµ Ð¼ÐµÐ´Ð¸Ð° Ð¸Ð»Ð¸ Ð¿ÐµÑÐµÐ¹ÑÐ¸ Ðº Ð¿ÑÐµÐ´Ð¿ÑÐ¾ÑÐ¼Ð¾ÑÑÑ?",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+
+            
             
             context.user_data['waiting_for'] = None
             return
@@ -169,10 +166,10 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         
         await update.message.reply_text(
-            "â Ð¢ÐµÐºÑÑ ÑÐ¾ÑÑÐ°Ð½ÐµÐ½!\n\n"
-            "Ð¥Ð¾ÑÐ¸ÑÐµ Ð´Ð¾Ð±Ð°Ð²Ð¸ÑÑ ÑÐ¾ÑÐ¾/Ð²Ð¸Ð´ÐµÐ¾ Ð¸Ð»Ð¸ ÑÑÐ°Ð·Ñ Ð¿ÐµÑÐµÐ¹ÑÐ¸ Ðº Ð¿ÑÐµÐ´Ð¿ÑÐ¾ÑÐ¼Ð¾ÑÑÑ?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+    "✅ Текст и медиа сохранены!\n\n"
+    "Хотите добавить ещё медиа или перейти к предпросмотру?",
+    reply_markup=InlineKeyboardMarkup(keyboard)
+)
         
         context.user_data['waiting_for'] = None
         
@@ -234,10 +231,10 @@ async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         ]
         
         await update.message.reply_text(
-            f"â ÐÐµÐ´Ð¸Ð° Ð´Ð¾Ð±Ð°Ð²Ð»ÐµÐ½Ð¾! (ÐÑÐµÐ³Ð¾: {total_media})\n\n"
-            "ÐÐ¾Ð±Ð°Ð²Ð¸ÑÑ ÐµÑÐµ Ð¸Ð»Ð¸ Ð¿ÐµÑÐµÐ¹ÑÐ¸ Ðº Ð¿ÑÐµÐ´Ð¿ÑÐ¾ÑÐ¼Ð¾ÑÑÑ?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+    f"✅ Медиа добавлено! (Всего: {total_media})\n\n"
+    "Добавить ещё или перейти к предпросмотру?",
+    reply_markup=InlineKeyboardMarkup(keyboard)
+)
         
         context.user_data['waiting_for'] = None
 
@@ -248,9 +245,9 @@ async def request_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("âï¸ ÐÐ°Ð·Ð°Ð´", callback_data="pub:preview")]]
     
     await update.callback_query.edit_message_text(
-        "ð· ÐÑÐ¿ÑÐ°Ð²ÑÑÐµ ÑÐ¾ÑÐ¾, Ð²Ð¸Ð´ÐµÐ¾ Ð¸Ð»Ð¸ Ð´Ð¾ÐºÑÐ¼ÐµÐ½Ñ:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    "📷 Отправьте фото, видео или документ:",
+    reply_markup=InlineKeyboardMarkup(keyboard)
+)
 
 async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show post preview"""
