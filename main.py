@@ -25,6 +25,13 @@ from handlers.piar_handler import (
     handle_piar_photo
 )
 
+# Configure logging first
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 # Попытка импорта admin handlers с обработкой ошибки
 try:
     from handlers.admin_handler import (
@@ -62,13 +69,6 @@ except ImportError:
 
 from services.db import db
 from services.cooldown import CooldownService
-
-# Configure logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
 
 class TrixBot:
     def __init__(self):
@@ -128,11 +128,20 @@ class TrixBot:
             app.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^admin:"))
         
         # Message handlers with priority order
-        # Media handler (higher priority)
-        app.add_handler(MessageHandler(
-            filters.PHOTO | filters.VIDEO | filters.Document.ALL,
-            self._handle_media_message
-        ))
+        # Media handler (higher priority) - исправленные фильтры
+        try:
+            # Пробуем новый синтаксис для документов
+            media_filter = filters.PHOTO | filters.VIDEO | filters.Document.ALL
+        except AttributeError:
+            # Fallback для старых версий
+            try:
+                media_filter = filters.PHOTO | filters.VIDEO | filters.DOCUMENT
+            except AttributeError:
+                # Если и это не работает, только фото и видео
+                media_filter = filters.PHOTO | filters.VIDEO
+                logger.warning("Document filter not available, using only PHOTO and VIDEO")
+        
+        app.add_handler(MessageHandler(media_filter, self._handle_media_message))
         
         # Text handler (lower priority) - активация любым сообщением
         app.add_handler(MessageHandler(
@@ -148,25 +157,32 @@ class TrixBot:
         # Если пользователь новый или нет активного состояния - показать главное меню
         if not waiting_for:
             # Проверяем, зарегистрирован ли пользователь
-            from services.db import db
-            from models import User
-            from sqlalchemy import select
-            
-            async with db.get_session() as session:
-                result = await session.execute(
-                    select(User).where(User.id == user_id)
-                )
-                user = result.scalar_one_or_none()
+            try:
+                from services.db import db
+                from models import User
+                from sqlalchemy import select
                 
-                if not user:
-                    # Новый пользователь - запускаем команду start
-                    await start_command(update, context)
-                    return
-                else:
-                    # Существующий пользователь - показываем главное меню
-                    from handlers.start_handler import show_main_menu
-                    await show_main_menu(update, context)
-                    return
+                async with db.get_session() as session:
+                    result = await session.execute(
+                        select(User).where(User.id == user_id)
+                    )
+                    user = result.scalar_one_or_none()
+                    
+                    if not user:
+                        # Новый пользователь - запускаем команду start
+                        await start_command(update, context)
+                        return
+                    else:
+                        # Существующий пользователь - показываем главное меню
+                        from handlers.start_handler import show_main_menu
+                        await show_main_menu(update, context)
+                        return
+            except Exception as e:
+                logger.error(f"Error checking user: {e}")
+                # В случае ошибки БД показываем меню
+                from handlers.start_handler import show_main_menu
+                await show_main_menu(update, context)
+                return
         
         # Обработка активных состояний
         if waiting_for == 'post_text':
