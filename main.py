@@ -1,122 +1,179 @@
-import asyncio
-import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from config import Config
-from services.db import db
-from handlers import (
-    start_handler,
-    menu_handler, 
-    publication_handler,
-    piar_handler,
-    moderation_handler,
-    admin_handler,
-    profile_handler,
-    scheduler_handler
-)
-from services.scheduler_service import SchedulerService
-from utils.permissions import admin_only, moderator_only
-import sys
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-# Настройка логирования
+import logging
+import asyncio
+from telegram.ext import (
+    Application, 
+    CommandHandler, 
+    CallbackQueryHandler, 
+    MessageHandler,
+    filters
+)
+
+from config import Config
+from handlers.start_handler import start_command, help_command
+from handlers.menu_handler import handle_menu_callback
+from handlers.publication_handler import (
+    handle_publication_callback, 
+    handle_text_input, 
+    handle_media_input
+)
+from handlers.piar_handler import (
+    handle_piar_callback, 
+    handle_piar_text,
+    handle_piar_photo
+)
+from handlers.profile_handler import handle_profile_callback
+from handlers.moderation_handler import handle_moderation_callback
+from handlers.admin_handler import (
+    admin_command, 
+    stats_command,
+    broadcast_command,
+    handle_admin_callback
+)
+from handlers.scheduler_handler import (
+    SchedulerHandler,
+    scheduler_command
+)
+from services.db import db
+from services.cooldown import CooldownService
+
+# Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Log errors"""
-    logger.error(f"Update {update} caused error {context.error}")
+class TrixBot:
+    def __init__(self):
+        self.application = None
+        self.scheduler = None
     
-    if update and update.effective_message:
-        await update.effective_message.reply_text(
-            "❌ Произошла ошибка. Попробуйте позже или обратитесь к администратору."
-        )
-
-async def post_init(application: Application):
-    """Initialize bot after start"""
-    # Initialize database
-    await db.init()
+    async def setup(self):
+        """Setup bot application and services"""
+        # Create application
+        self.application = Application.builder().token(Config.BOT_TOKEN).build()
+        
+        # Initialize database
+        await db.init()
+        
+        # Initialize cooldown service
+        CooldownService()
+        
+        # Setup scheduler
+        if Config.SCHEDULER_ENABLED:
+            self.scheduler = SchedulerHandler()
+            await self.scheduler.start()
+        
+        # Add handlers
+        self._add_handlers()
+        
+        logger.info("Bot setup complete")
     
-    # Initialize scheduler
-    scheduler = SchedulerService(application.bot)
-    await scheduler.init()
-    application.bot_data['scheduler'] = scheduler
+    def _add_handlers(self):
+        """Add all command and callback handlers"""
+        app = self.application
+        
+        # Command handlers
+        app.add_handler(CommandHandler("start", start_command))
+        app.add_handler(CommandHandler("help", help_command))
+        app.add_handler(CommandHandler("admin", admin_command))
+        app.add_handler(CommandHandler("stats", stats_command))
+        app.add_handler(CommandHandler("broadcast", broadcast_command))
+        app.add_handler(CommandHandler("scheduler", scheduler_command))
+        
+        # Callback query handlers
+        app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^menu:"))
+        app.add_handler(CallbackQueryHandler(handle_publication_callback, pattern="^pub:"))
+        app.add_handler(CallbackQueryHandler(handle_piar_callback, pattern="^piar:"))
+        app.add_handler(CallbackQueryHandler(handle_profile_callback, pattern="^profile:"))
+        app.add_handler(CallbackQueryHandler(handle_moderation_callback, pattern="^mod:"))
+        app.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^admin:"))
+        
+        # Message handlers with priority order
+        # Media handler (higher priority)
+        app.add_handler(MessageHandler(
+            filters.PHOTO | filters.VIDEO | filters.DOCUMENT,
+            self._handle_media_message
+        ))
+        
+        # Text handler (lower priority)
+        app.add_handler(MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            self._handle_text_message
+        ))
     
-    logger.info("Bot initialized successfully")
-
-async def post_shutdown(application: Application):
-    """Cleanup on shutdown"""
-    await db.close()
+    async def _handle_text_message(self, update, context):
+        """Route text messages to appropriate handler"""
+        waiting_for = context.user_data.get('waiting_for')
+        
+        if not waiting_for:
+            # No active state, ignore
+            return
+        
+        if waiting_for == 'post_text':
+            await handle_text_input(update, context)
+        elif waiting_for.startswith('piar_'):
+            field = waiting_for.replace('piar_', '')
+            await handle_piar_text(update, context, field, update.message.text)
+        elif waiting_for == 'cancel_reason':
+            await handle_text_input(update, context)
+        else:
+            logger.warning(f"Unhandled waiting_for state: {waiting_for}")
     
-    if 'scheduler' in application.bot_data:
-        scheduler = application.bot_data['scheduler']
-        scheduler.stop()
+    async def _handle_media_message(self, update, context):
+        """Route media messages to appropriate handler"""
+        waiting_for = context.user_data.get('waiting_for')
+        
+        # Handle media for publications
+        if 'post_data' in context.user_data:
+            await handle_media_input(update, context)
+        # Handle media for piar
+        elif waiting_for == 'piar_photo':
+            await handle_piar_photo(update, context)
+        # Handle media with caption as text
+        elif update.message.caption and waiting_for:
+            await self._handle_text_message(update, context)
     
-    logger.info("Bot shutdown complete")
+    async def run(self):
+        """Run the bot"""
+        try:
+            await self.setup()
+            
+            logger.info("Starting bot polling...")
+            await self.application.run_polling(
+                allowed_updates=['message', 'callback_query'],
+                drop_pending_updates=True
+            )
+        except Exception as e:
+            logger.error(f"Error running bot: {e}")
+            raise
+        finally:
+            await self.cleanup()
+    
+    async def cleanup(self):
+        """Cleanup resources"""
+        if self.scheduler:
+            await self.scheduler.stop()
+        
+        if hasattr(db, 'close'):
+            await db.close()
+        
+        logger.info("Bot cleanup complete")
 
 def main():
-    """Start the bot"""
-    if not Config.BOT_TOKEN:
-        logger.error("No bot token provided!")
-        sys.exit(1)
+    """Main entry point"""
+    bot = TrixBot()
     
-    # Create application
-    application = Application.builder().token(Config.BOT_TOKEN).build()
-    
-    # Add initialization handlers
-    application.post_init = post_init
-    application.post_shutdown = post_shutdown
-    
-    # Command handlers
-    application.add_handler(CommandHandler("start", start_handler.start_command))
-    application.add_handler(CommandHandler("help", start_handler.help_command))
-    application.add_handler(CommandHandler("profile", profile_handler.profile_command))
-    application.add_handler(CommandHandler("stats", profile_handler.stats_command))
-    application.add_handler(CommandHandler("top", profile_handler.top_command))
-    
-    # Admin commands
-    application.add_handler(CommandHandler("panel", admin_handler.panel_command))
-    application.add_handler(CommandHandler("ban", admin_handler.ban_command))
-    application.add_handler(CommandHandler("unban", admin_handler.unban_command))
-    application.add_handler(CommandHandler("mute", admin_handler.mute_command))
-    application.add_handler(CommandHandler("unmute", admin_handler.unmute_command))
-    application.add_handler(CommandHandler("cdreset", admin_handler.cdreset_command))
-    application.add_handler(CommandHandler("broadcast", admin_handler.broadcast_command))
-    application.add_handler(CommandHandler("admins", admin_handler.admins_command))
-    application.add_handler(CommandHandler("user", admin_handler.user_info_command))
-    
-# Scheduler commands
-    application.add_handler(CommandHandler("scheduler", scheduler_handler.scheduler_status))
-    application.add_handler(CommandHandler("scheduler_on", scheduler_handler.scheduler_on))
-    application.add_handler(CommandHandler("scheduler_off", scheduler_handler.scheduler_off))
-    application.add_handler(CommandHandler("scheduler_message", scheduler_handler.scheduler_message))
-    application.add_handler(CommandHandler("scheduler_test", scheduler_handler.scheduler_test))
-    
-    # Callback query handlers
-    application.add_handler(CallbackQueryHandler(menu_handler.handle_menu_callback, pattern="^menu:"))
-    application.add_handler(CallbackQueryHandler(publication_handler.handle_publication_callback, pattern="^pub:"))
-    application.add_handler(CallbackQueryHandler(piar_handler.handle_piar_callback, pattern="^piar:"))
-    application.add_handler(CallbackQueryHandler(moderation_handler.handle_moderation_callback, pattern="^mod:"))
-    application.add_handler(CallbackQueryHandler(profile_handler.handle_profile_callback, pattern="^profile:"))
-    
-    # Message handlers
-    application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        publication_handler.handle_text_input
-    ))
-    application.add_handler(MessageHandler(
-        filters.PHOTO | filters.VIDEO | filters.Document.ALL,
-        publication_handler.handle_media_input
-    ))
-    
-    # Error handler
-    application.add_error_handler(error_handler)
-    
-    # Start bot
-    logger.info("Starting bot...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        asyncio.run(bot.run())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Bot crashed: {e}")
+        raise
 
 if __name__ == '__main__':
     main()
