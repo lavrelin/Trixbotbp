@@ -20,7 +20,6 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     elif action == "search":
         await start_search(update, context)
     elif action == "catalog":
-        # Открываем каталог
         await show_catalog(update, context)
     elif action == "piar":
         await start_piar(update, context)
@@ -159,53 +158,10 @@ async def show_catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def start_piar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start Piar form"""
+    """Start Services form (renamed from Piar)"""
     context.user_data['piar_data'] = {}
     context.user_data['waiting_for'] = 'piar_name'
     
     keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]]
     
     text = (
-        "⭐️ *Пиар - Продвижение бизнеса*\n\n"
-        "Шаг 1 из 7\n"
-        "Введите ваше имя:"
-    )
-    
-    try:
-        await update.callback_query.edit_message_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-    except Exception as e:
-        logger.error(f"Error in start_piar: {e}")
-        await update.callback_query.answer("Ошибка. Попробуйте позже", show_alert=True)
-
-async def start_category_post(update: Update, context: ContextTypes.DEFAULT_TYPE, 
-                              category: str, subcategory: str, anonymous: bool = False):
-    """Start post creation for specific category"""
-    context.user_data['post_data'] = {
-        'category': category,
-        'subcategory': subcategory,
-        'anonymous': anonymous
-    }
-    
-    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:budapest")]]
-    
-    anon_text = " (анонимно)" if anonymous else ""
-    
-    text = (
-        f"{category} → {subcategory}{anon_text}\n\n"
-        "Отправьте текст вашей публикации и/или фото/видео:"
-    )
-    
-    try:
-        await update.callback_query.edit_message_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-        context.user_data['waiting_for'] = 'post_text'
-    except Exception as e:
-        logger.error(f"Error in start_category_post: {e}")
-        await update.callback_query.answer("Ошибка. Попробуйте позже", show_alert=True)
