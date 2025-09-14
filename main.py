@@ -270,25 +270,12 @@ async def start_bot():
 
 def main():
     """Main entry point for Railway"""
-    try:
-        # Проверяем, есть ли уже running event loop
-        try:
-            loop = asyncio.get_running_loop()
-            logger.info("Using existing event loop")
-            # Создаем задачу в существующем loop
-            task = loop.create_task(start_bot())
-            # Ждем завершения
-            loop.run_until_complete(task)
-        except RuntimeError:
-            # Нет running loop, создаем новый
-            logger.info("Creating new event loop")
-            asyncio.run(start_bot())
-            
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Bot crashed: {e}")
-        raise
+    bot = TrixBot()
+    
+    # Простой запуск без проверки event loop
+    import asyncio
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    asyncio.get_event_loop().run_until_complete(bot.run())
 
 if __name__ == '__main__':
     main()
