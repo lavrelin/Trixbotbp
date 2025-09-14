@@ -13,7 +13,7 @@ from telegram.ext import (
 
 from config import Config
 
-# Configure logging first
+# Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -148,7 +148,7 @@ class TrixBot:
                 app.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^admin:"))
                 logger.info("Admin callback handler added")
             
-            # Message handlers - только фото и видео для стабильности
+            # Message handlers - только фото и видео
             app.add_handler(MessageHandler(
                 filters.PHOTO | filters.VIDEO,
                 self._handle_media_message
@@ -176,7 +176,6 @@ class TrixBot:
             
             logger.debug(f"Text message from user {user_id}, waiting_for: {waiting_for}")
             
-            # Если пользователь новый или нет активного состояния
             if not waiting_for:
                 if DB_AVAILABLE:
                     try:
@@ -191,27 +190,22 @@ class TrixBot:
                             user = result.scalar_one_or_none()
                             
                             if not user:
-                                # Новый пользователь
                                 await start_command(update, context)
                                 return
                             else:
-                                # Существующий пользователь - показываем главное меню
                                 from handlers.start_handler import show_main_menu
                                 await show_main_menu(update, context)
                                 return
                     except Exception as e:
                         logger.error(f"Error checking user in DB: {e}")
-                        # Fallback - показать меню
                         from handlers.start_handler import show_main_menu
                         await show_main_menu(update, context)
                         return
                 else:
-                    # Если БД недоступна, просто показываем меню
                     from handlers.start_handler import show_main_menu
                     await show_main_menu(update, context)
                     return
             
-            # Обработка активных состояний
             if waiting_for == 'post_text':
                 await handle_text_input(update, context)
             elif waiting_for.startswith('piar_'):
@@ -226,7 +220,6 @@ class TrixBot:
                 
         except Exception as e:
             logger.error(f"Error handling text message: {e}")
-            # Fallback - показать главное меню
             try:
                 from handlers.start_handler import show_main_menu
                 await show_main_menu(update, context)
@@ -240,36 +233,28 @@ class TrixBot:
             
             logger.debug(f"Media message, waiting_for: {waiting_for}")
             
-            # Handle media for publications
             if 'post_data' in context.user_data:
                 await handle_media_input(update, context)
-            # Handle media for piar
             elif waiting_for == 'piar_photo':
                 await handle_piar_photo(update, context)
-            # Handle media with caption as text
             elif update.message.caption and waiting_for:
                 await self._handle_text_message(update, context)
             else:
-                # Если нет активного состояния, показать меню
                 from handlers.start_handler import show_main_menu
                 await show_main_menu(update, context)
                 
         except Exception as e:
             logger.error(f"Error handling media message: {e}")
     
-       async def run(self):
+    async def run(self):
         """Run the bot"""
         try:
             await self.setup()
-            
             logger.info("Starting bot polling...")
-            
-            # Используем run_polling
             await self.application.run_polling(
                 allowed_updates=['message', 'callback_query'],
                 drop_pending_updates=True
             )
-            
         except Exception as e:
             logger.error(f"Error running bot: {e}")
             raise
