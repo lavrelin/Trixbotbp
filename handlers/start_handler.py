@@ -43,12 +43,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_main_menu(update, context)
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show main menu"""
+    """Show main menu with updated order"""
     keyboard = [
         [InlineKeyboardButton("🗯️ Будапешт", callback_data="menu:budapest")],
-        [InlineKeyboardButton("🕵️ Поиск", callback_data="menu:search")],
+        [InlineKeyboardButton("💼 Предложить услугу", callback_data="menu:services")],
         [InlineKeyboardButton("📚 Каталог", callback_data="menu:catalog")],
-        [InlineKeyboardButton("⭐️ Пиар", callback_data="menu:piar")],
         [
             InlineKeyboardButton("👤 Профиль", callback_data="menu:profile"),
             InlineKeyboardButton("ℹ️ Помощь", callback_data="menu:help")
@@ -59,9 +58,8 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🏠 *Главное меню*\n\n"
         "Выберите раздел:\n\n"
         "🗯️ *Будапешт* - объявления, новости, подслушано\n"
-        "🕵️ *Поиск* - поиск чего угодно\n"
+        "💼 *Предложить услугу* - продвижение бизнеса\n"
         "📚 *Каталог* - каталог услуг и товаров\n"
-        "⭐️ *Пиар* - продвижение бизнеса\n"
     )
     
     try:
@@ -87,7 +85,14 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command"""
+    """Handle /help command with links to community"""
+    keyboard = [
+        [InlineKeyboardButton("📺 Канал SNGHU", url="https://t.me/snghu")],
+        [InlineKeyboardButton("💬 Чат для общения", url="https://t.me/tgchatxxx")],
+        [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
+        [InlineKeyboardButton("◀️ Главное меню", callback_data="menu:back")]
+    ]
+    
     help_text = (
         "📖 *Помощь по использованию бота*\n\n"
         "🔸 /start - главное меню\n"
@@ -102,13 +107,33 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*Правила:*\n"
         "• Между постами минимум 94 минуты\n"
         "• Запрещены ссылки\n"
-        "• Все посты проходят модерацию\n"
+        "• Все посты проходят модерацию\n\n"
+        "*Наше сообщество:*\n"
+        "📺 Главный канал для публикаций\n"
+        "💬 Чат для живого общения\n"
+        "📚 Каталог всех услуг и товаров"
     )
     
-    await update.effective_message.reply_text(
-        help_text,
-        parse_mode='Markdown'
-    )
+    try:
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                help_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+        else:
+            await update.effective_message.reply_text(
+                help_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+    except Exception as e:
+        logger.error(f"Error showing help: {e}")
+        await update.effective_message.reply_text(
+            help_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
 
 def generate_referral_code():
     """Generate unique referral code"""
