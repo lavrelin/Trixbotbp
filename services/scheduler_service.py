@@ -1,124 +1,56 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from services.db import db
-from models import Scheduler
-from sqlalchemy import select
-from datetime import datetime, timedelta
-from config import Config
-import random
 import logging
 import asyncio
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 class SchedulerService:
-    """Service for scheduled messages"""
+    """Simple scheduler service without APScheduler dependency"""
     
-    def __init__(self, bot):
-        self.bot = bot
-        self.scheduler = AsyncIOScheduler()
-        self.job = None
-        
-    async def init(self):
-        """Initialize scheduler"""
-        self.scheduler.start()
-        await self.check_and_start()
-        logger.info("Scheduler service initialized")
-    
-    async def check_and_start(self):
-        """Check if scheduler should be running"""
-        async with db.get_session() as session:
-            result = await session.execute(
-                select(Scheduler).where(Scheduler.id == 1)
-            )
-            scheduler_config = result.scalar_one_or_none()
-            
-            if scheduler_config and scheduler_config.enabled:
-                await self.start()
+    def __init__(self):
+        self.running = False
+        self.task: Optional[asyncio.Task] = None
+        logger.info("SchedulerService initialized (simple mode)")
     
     async def start(self):
-        """Start scheduler"""
-        if self.job:
-            self.job.remove()
+        """Start the scheduler"""
+        if self.running:
+            logger.warning("Scheduler is already running")
+            return
         
-        # Schedule next message
-        await self.schedule_next_message()
-        logger.info("Scheduler started")
+        self.running = True
+        logger.info("Scheduler started (simple mode)")
+        
+        # В простой версии не запускаем задачи
+        # Можно добавить функционал позже если нужен
     
-    def stop(self):
-        """Stop scheduler"""
-        if self.job:
-            self.job.remove()
-            self.job = None
+    async def stop(self):
+        """Stop the scheduler"""
+        if not self.running:
+            return
+        
+        self.running = False
+        
+        if self.task and not self.task.done():
+            self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
+        
         logger.info("Scheduler stopped")
     
-    async def schedule_next_message(self):
-        """Schedule next promotional message"""
-        async with db.get_session() as session:
-            result = await session.execute(
-                select(Scheduler).where(Scheduler.id == 1)
-            )
-            scheduler_config = result.scalar_one_or_none()
-            
-            if not scheduler_config or not scheduler_config.enabled:
-                return
-            
-            # Calculate random interval
-            interval_minutes = random.randint(
-                scheduler_config.min_interval,
-                scheduler_config.max_interval
-            )
-            
-            # Schedule job
-            run_time = datetime.now() + timedelta(minutes=interval_minutes)
-            
-            self.job = self.scheduler.add_job(
-                self.send_promotional_message,
-                'date',
-                run_date=run_time,
-                id='promo_message'
-            )
-            
-            logger.info(f"Next promotional message scheduled in {interval_minutes} minutes")
+    def is_running(self) -> bool:
+        """Check if scheduler is running"""
+        return self.running
     
-    async def send_promotional_message(self):
-        """Send promotional message to chat"""
-        try:
-            async with db.get_session() as session:
-                result = await session.execute(
-                    select(Scheduler).where(Scheduler.id == 1)
-                )
-                scheduler_config = result.scalar_one_or_none()
-                
-                if not scheduler_config or not scheduler_config.enabled:
-                    return
-                
-                # Parse chat ID from URL
-                chat_id = Config.CHAT_FOR_ADS
-                if chat_id.startswith('https://t.me/'):
-                    chat_id = '@' + chat_id.replace('https://t.me/', '')
-                
-                # Send message
-                try:
-                    await self.bot.send_message(
-                        chat_id=chat_id,
-                        text=scheduler_config.message_text,
-                        disable_web_page_preview=True
-                    )
-                    
-                    # Update last run time
-                    scheduler_config.last_run = datetime.utcnow()
-                    await session.commit()
-                    
-                    logger.info(f"Promotional message sent to {chat_id}")
-                    
-                except Exception as e:
-                    logger.error(f"Failed to send promotional message: {e}")
-                
-                # Schedule next message
-                await self.schedule_next_message()
-                
-        except Exception as e:
-            logger.error(f"Error in send_promotional_message: {e}")
-            # Try to reschedule
-            await asyncio.sleep(60)
-            await self.schedule_next_message()
+    async def add_job(self, func, **kwargs):
+        """Placeholder for adding jobs"""
+        logger.info(f"Job scheduling not implemented: {func.__name__}")
+    
+    async def remove_job(self, job_id: str):
+        """Placeholder for removing jobs"""
+        logger.info(f"Job removal not implemented: {job_id}")
+
+# Global instance
+scheduler_service = SchedulerService()
