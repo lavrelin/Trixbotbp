@@ -257,7 +257,7 @@ class TrixBot:
         except Exception as e:
             logger.error(f"Error handling media message: {e}")
     
-    async def run(self):
+       async def run(self):
         """Run the bot"""
         try:
             await self.setup()
@@ -281,18 +281,14 @@ class TrixBot:
         try:
             if DB_AVAILABLE and hasattr(db, 'close'):
                 await db.close()
-            
             logger.info("Bot cleanup complete")
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
 
+# конец класса TrixBot
+# --------------------
+
 def main():
-    """Main entry point"""
-    logger.info("Starting TrixBot...")
-    
-    bot = TrixBot()
-    
-   def main():
     """Main entry point"""
     logger.info("Starting TrixBot...")
 
@@ -315,7 +311,6 @@ def main():
         logger.error(f"Bot crashed: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        raise
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
