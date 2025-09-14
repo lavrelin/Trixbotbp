@@ -253,7 +253,7 @@ async def request_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show post preview"""
+    """Show post preview with media"""
     if 'post_data' not in context.user_data:
         await update.callback_query.edit_message_text("❌ Ошибка: данные поста не найдены")
         return
@@ -280,23 +280,46 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Отмена", callback_data="pub:cancel")]
     ]
     
-    # Send preview
+    # Send media preview first if exists
+    media = post_data.get('media', [])
+    if media:
+        try:
+            for media_item in media[:5]:  # Показываем до 5 медиа файлов
+                if media_item.get('type') == 'photo':
+                    await update.effective_message.reply_photo(
+                        photo=media_item['file_id'],
+                        caption="📷 Прикрепленное фото" if len(media) == 1 else None
+                    )
+                elif media_item.get('type') == 'video':
+                    await update.effective_message.reply_video(
+                        video=media_item['file_id'],
+                        caption="🎥 Прикрепленное видео" if len(media) == 1 else None
+                    )
+                elif media_item.get('type') == 'document':
+                    await update.effective_message.reply_document(
+                        document=media_item['file_id'],
+                        caption="📄 Прикрепленный документ" if len(media) == 1 else None
+                    )
+        except Exception as e:
+            logger.error(f"Error showing media preview: {e}")
+    
+    # Send preview text
     try:
         if update.callback_query:
             await update.callback_query.edit_message_text(
-                f"👁 *Предпросмотр:*\n\n{preview_text}",
+                f"👁 *Предпросмотр поста:*\n\n{preview_text}",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='Markdown'
             )
         else:
             await update.effective_message.reply_text(
-                f"👁 *Предпросмотр:*\n\n{preview_text}",
+                f"👁 *Предпросмотр поста:*\n\n{preview_text}",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='Markdown'
             )
     except:
         await update.effective_message.reply_text(
-            f"👁 *Предпросмотр:*\n\n{preview_text}",
+            f"👁 *Предпросмотр поста:*\n\n{preview_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
@@ -380,11 +403,20 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             next_post_time = f"{cooldown_minutes} минут"
         
+        # Show success message with channel promotion
+        success_keyboard = [
+            [InlineKeyboardButton("📺 Наш канал", url="https://t.me/snghu")],
+            [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
+            [InlineKeyboardButton("🏠 Главное меню", callback_data="menu:back")]
+        ]
+        
         await update.callback_query.edit_message_text(
             f"✅ *Отправлено на модерацию!*\n\n"
             f"Ваш пост будет проверен модераторами.\n"
             f"Вы получите уведомление о результате.\n\n"
-            f"⏰ Следующий пост можно отправить через {next_post_time}",
+            f"⏰ Следующий пост можно отправить через {next_post_time}\n\n"
+            f"🔔 *Не забудьте подписаться на наши каналы:*",
+            reply_markup=InlineKeyboardMarkup(success_keyboard),
             parse_mode='Markdown'
         )
 
@@ -455,21 +487,29 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
         )
         
         # Сохраняем ID сообщения
-        post.moderation_message_id = message.message_id
+        async with db.get_session() as session:
+            await session.execute(
+                f"UPDATE posts SET moderation_message_id = {message.message_id} WHERE id = {post.id}"
+            )
+            await session.commit()
             
     except Exception as e:
         logger.error(f"Error sending to moderation group: {e}")
-        # Fallback - уведомляем пользователя об ошибке
+        # Отправляем подробное сообщение об ошибке
+        error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
+        
         await bot.send_message(
             chat_id=user.id,
             text=(
-                "⚠️ Ошибка отправки в группу модерации.\n\n"
-                "Возможные причины:\n"
-                "• Бот не добавлен в группу модерации\n"
-                "• Бот не является администратором группы\n"
-                "• Неверный ID группы\n\n"
-                "Обратитесь к администратору."
-            )
+                f"⚠️ Ошибка отправки в группу модерации\n\n"
+                f"Детали ошибки:\n`{error_details}`\n\n"
+                f"Проверьте:\n"
+                f"• Бот добавлен в группу модерации?\n"
+                f"• Бот является администратором группы?\n"
+                f"• ID группы: {Config.MODERATION_GROUP_ID}\n\n"
+                f"Обратитесь к администратору."
+            ),
+            parse_mode='Markdown'
         )
 
 async def cancel_post_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
