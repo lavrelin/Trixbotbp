@@ -40,6 +40,9 @@ async def handle_piar_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await request_piar_photo(update, context)
     elif action == "skip_photo":
         await show_piar_preview(update, context)
+    elif action == "next_photo":
+        # Новая функция "Дальше" после добавления медиа
+        await show_piar_preview(update, context)
     elif action == "back":
         # Возврат на предыдущий шаг
         await go_back_step(update, context)
@@ -138,7 +141,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         ]
         
         await update.message.reply_text(
-            "📷 *Фотографии*\n\n"
+            "📷 *Шаг 7 - Фотографии*\n\n"
             "Отправьте до 3 фотографий или видео для вашего объявления\n"
             "или нажмите 'Пропустить'",
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -203,21 +206,25 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if media_added:
         remaining = Config.MAX_PHOTOS_PIAR - len(photos)
         
-        keyboard = [
-            [InlineKeyboardButton("👁 Предпросмотр", callback_data="piar:preview")]
-        ]
+        keyboard = []
         
         if remaining > 0:
-            keyboard.insert(0, [
+            keyboard.append([
                 InlineKeyboardButton(f"📷 Добавить еще ({remaining})", 
                                    callback_data="piar:add_photo")
             ])
+        
+        # Всегда показываем кнопку "Дальше"
+        keyboard.append([
+            InlineKeyboardButton("▶️ Дальше", callback_data="piar:next_photo")
+        ])
         
         keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="piar:back")])
         keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
         
         await update.message.reply_text(
-            f"✅ Медиа добавлено! (Всего: {len(photos)})",
+            f"✅ Медиа добавлено! (Всего: {len(photos)})\n\n"
+            f"Хотите добавить еще или перейти к предпросмотру?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -229,7 +236,7 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     remaining = Config.MAX_PHOTOS_PIAR - photos_count
     
     keyboard = [
-        [InlineKeyboardButton("👁 Предпросмотр", callback_data="piar:preview")],
+        [InlineKeyboardButton("▶️ Дальше", callback_data="piar:next_photo")],
         [InlineKeyboardButton("◀️ Назад", callback_data="piar:back")],
         [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
     ]
@@ -240,7 +247,7 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show piar preview"""
+    """Show piar preview with media"""
     if 'piar_data' not in context.user_data:
         await update.callback_query.edit_message_text("❌ Данные не найдены")
         return
@@ -274,28 +281,39 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
     ]
     
-    # Send photos if exist
-    if data.get('photos'):
-        for photo_id in data['photos']:
-            try:
-                await update.callback_query.message.reply_photo(photo_id)
-            except:
-                pass
-    
-    if update.callback_query:
+    # Send photos preview if exist
+    if data.get('media'):
         try:
+            for media_item in data['media'][:3]:  # Показываем до 3 медиа
+                if media_item.get('type') == 'photo':
+                    await update.effective_message.reply_photo(
+                        photo=media_item['file_id'],
+                        caption="📷 Прикрепленное фото"
+                    )
+                elif media_item.get('type') == 'video':
+                    await update.effective_message.reply_video(
+                        video=media_item['file_id'],
+                        caption="🎥 Прикрепленное видео"
+                    )
+        except Exception as e:
+            logger.error(f"Error showing piar media preview: {e}")
+    
+    # Send preview text
+    try:
+        if update.callback_query:
             await update.callback_query.edit_message_text(
                 text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='Markdown'
             )
-        except:
-            await update.callback_query.message.reply_text(
+        else:
+            await update.effective_message.reply_text(
                 text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='Markdown'
             )
-    else:
+    except Exception as e:
+        logger.error(f"Error showing piar preview: {e}")
         await update.effective_message.reply_text(
             text,
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -355,16 +373,25 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
         else:
             next_post_time = f"{cooldown_minutes} минут"
         
+        # Show success message with channel promotion
+        success_keyboard = [
+            [InlineKeyboardButton("📺 Наш канал", url="https://t.me/snghu")],
+            [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
+            [InlineKeyboardButton("🏠 Главное меню", callback_data="menu:back")]
+        ]
+        
         await update.callback_query.edit_message_text(
             f"✅ *Отправлено на модерацию!*\n\n"
             f"Ваша заявка на пиар будет рассмотрена модераторами.\n\n"
-            f"⏰ Следующую заявку можно отправить через {next_post_time}",
+            f"⏰ Следующую заявку можно отправить через {next_post_time}\n\n"
+            f"🔔 *Не забудьте подписаться на наши каналы:*",
+            reply_markup=InlineKeyboardMarkup(success_keyboard),
             parse_mode='Markdown'
         )
 
 async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_TYPE,
                                  post: Post, user: User, data: dict):
-    """Send piar to moderation group with media"""
+    """Send piar to moderation group with improved error handling"""
     bot = context.bot
     
     text = (
@@ -400,36 +427,92 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
     ]
     
     try:
-        # Сначала отправляем все медиа по отдельности
+        # Проверяем доступность группы модерации
+        try:
+            await bot.get_chat(Config.MODERATION_GROUP_ID)
+        except Exception as e:
+            logger.error(f"Cannot access moderation group {Config.MODERATION_GROUP_ID}: {e}")
+            await bot.send_message(
+                chat_id=user.id,
+                text="⚠️ Группа модерации недоступна.\n"
+                     "Проверьте:\n"
+                     "• Бот добавлен в группу?\n"
+                     "• Бот является администратором?\n"
+                     "• Правильный ID группы в настройках?"
+            )
+            return
+
+        # Отправляем медиа с улучшенной обработкой ошибок
+        media_sent = []
         if data.get('media') and len(data['media']) > 0:
-            for media_item in data['media']:
+            for i, media_item in enumerate(data['media']):
                 try:
                     if media_item.get('type') == 'photo':
-                        await bot.send_photo(
+                        msg = await bot.send_photo(
                             chat_id=Config.MODERATION_GROUP_ID,
-                            photo=media_item['file_id']
+                            photo=media_item['file_id'],
+                            caption=f"Медиа {i+1}/{len(data['media'])}"
                         )
+                        media_sent.append(msg.message_id)
                     elif media_item.get('type') == 'video':
-                        await bot.send_video(
+                        msg = await bot.send_video(
                             chat_id=Config.MODERATION_GROUP_ID,
-                            video=media_item['file_id']
+                            video=media_item['file_id'],
+                            caption=f"Медиа {i+1}/{len(data['media'])}"
                         )
-                except Exception as e:
-                    logger.error(f"Error sending piar media: {e}")
+                        media_sent.append(msg.message_id)
+                except Exception as media_error:
+                    logger.error(f"Error sending piar media {i+1}: {media_error}")
+                    continue
         
-        # Затем отправляем текст с кнопками
-        await bot.send_message(
-            chat_id=Config.MODERATION_GROUP_ID,
-            text=text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
+        # Отправляем основное сообщение с кнопками
+        try:
+            message = await bot.send_message(
+                chat_id=Config.MODERATION_GROUP_ID,
+                text=text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+            
+            # Сохраняем ID сообщения
+            async with db.get_session() as session:
+                await session.execute(
+                    f"UPDATE posts SET moderation_message_id = {message.message_id} WHERE id = {post.id}"
+                )
+                await session.commit()
+            
+            logger.info(f"Piar sent to moderation successfully. Post ID: {post.id}")
+            
+        except Exception as text_error:
+            logger.error(f"Error sending piar text message: {text_error}")
+            # Если не удалось отправить основное сообщение, удаляем уже отправленные медиа
+            for msg_id in media_sent:
+                try:
+                    await bot.delete_message(Config.MODERATION_GROUP_ID, msg_id)
+                except:
+                    pass
+            raise text_error
             
     except Exception as e:
         logger.error(f"Error sending piar to moderation: {e}")
+        
+        # Более подробное сообщение об ошибке пользователю
+        error_details = ""
+        if "chat not found" in str(e).lower():
+            error_details = "\n\n❌ Группа модерации не найдена"
+        elif "not enough rights" in str(e).lower():
+            error_details = "\n\n❌ Недостаточно прав для отправки в группу"
+        elif "bot was blocked" in str(e).lower():
+            error_details = "\n\n❌ Бот заблокирован в группе"
+        elif "file_id" in str(e).lower():
+            error_details = "\n\n❌ Ошибка с медиа-файлами"
+        
         await bot.send_message(
             chat_id=user.id,
-            text="⚠️ Ошибка отправки в группу модерации.\nОбратитесь к администратору."
+            text=f"⚠️ Ошибка отправки в группу модерации{error_details}\n\n"
+                 "Обратитесь к администратору с этой информацией:\n"
+                 f"`{str(e)[:100]}...`",
+            parse_mode='Markdown'
         )
 
 async def go_back_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -483,7 +566,7 @@ async def restart_piar_form(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="menu:back")]]
     
     await update.callback_query.edit_message_text(
-        "⭐️ *Пиар - Продвижение бизнеса*\n\n"
+        "💼 *Предложить услугу*\n\n"
         "Шаг 1 из 7\n"
         "Введите ваше имя:",
         reply_markup=InlineKeyboardMarkup(keyboard),
