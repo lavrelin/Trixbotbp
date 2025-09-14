@@ -63,7 +63,7 @@ class Config:
     MAX_PHOTOS_PIAR = 3
     MAX_DISTRICTS_PIAR = 3
     
-    # Categories
+    # Categories (updated without Search)
     CATEGORIES = {
         "🗯️ Будапешт": {
             "🗣️ Объявления": [
@@ -80,27 +80,59 @@ class Config:
             "🤐 Подслушано": [],
             "🤮 Жалобы": []
         },
-        "🕵️ Поиск": [],
-        "📃 Предложения": [],
-        "⭐️ Пиар": []
+        "💼 Услуги": []
+    }
+    
+    # Hashtags
+    HASHTAGS = {
+        "🗯️ Будапешт": {
+            "🗣️ Объявления": {
+                "👷‍♀️ Работа": ["#Работа", "#ВакансииБудапешт"],
+                "🏠 Аренда": ["#Аренда", "#НедвижимостьБудапешт"],
+                "🔻 Куплю": ["#Куплю", "#ПокупкаБудапешт"],
+                "🔺 Продам": ["#Продам", "#ПродажаБудапешт"],
+                "🎉 События": ["#События", "#МероприятияБудапешт"],
+                "📦 Отдам даром": ["#ОтдамДаром", "#БесплатноБудапешт"],
+                "🌪️ Важно": ["#Важно", "#СрочноБудапешт"],
+                "❔ Другое": ["#Объявления", "#РазноеБудапешт"]
+            },
+            "📺 Новости": ["#Новости", "#НовостиБудапешт"],
+            "🤐 Подслушано": ["#Подслушано", "#ИсторииБудапешт"],
+            "🤮 Жалобы": ["#Жалобы", "#ПроблемыБудапешт"]
+        },
+        "💼 Услуги": ["#Услуги", "#БизнесБудапешт"]
     }
     
     @classmethod
     def is_admin(cls, user_id: int) -> bool:
+        """Check if user is admin"""
         return user_id in cls.ADMIN_IDS
     
     @classmethod
     def is_moderator(cls, user_id: int) -> bool:
+        """Check if user is moderator or admin"""
         return user_id in cls.MODERATOR_IDS or cls.is_admin(user_id)
     
     @classmethod
-    def get_level_info(cls, xp: int) -> tuple[int, str]:
-        level = 1
-        level_name = cls.XP_LEVELS[1][1]
+    def get_all_moderators(cls) -> Set[int]:
+        """Get all moderators and admins"""
+        return cls.ADMIN_IDS.union(cls.MODERATOR_IDS)
+    
+    @classmethod
+    def get_xp_level(cls, xp: int) -> tuple:
+        """Get level info by XP amount"""
+        for level in range(len(cls.XP_LEVELS), 0, -1):
+            if xp >= cls.XP_LEVELS[level][0]:
+                return level, cls.XP_LEVELS[level][1]
+        return 1, cls.XP_LEVELS[1][1]
+    
+    @classmethod
+    def get_next_level_xp(cls, current_xp: int) -> int:
+        """Get XP needed for next level"""
+        current_level, _ = cls.get_xp_level(current_xp)
         
-        for lvl, (min_xp, name) in cls.XP_LEVELS.items():
-            if xp >= min_xp:
-                level = lvl
-                level_name = name
+        if current_level >= len(cls.XP_LEVELS):
+            return 0  # Max level reached
         
-        return level, level_name
+        next_level = current_level + 1
+        return cls.XP_LEVELS[next_level][0] - current_xp
