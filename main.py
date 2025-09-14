@@ -292,9 +292,16 @@ def main():
     
     bot = TrixBot()
     
-    try:
-        # Простой запуск
-        asyncio.run(bot.run())
+   try:
+    import asyncio
+    # Асинхронная инициализация
+    asyncio.get_event_loop().run_until_complete(bot.setup())
+    
+    # Запуск polling напрямую
+    bot.application.run_polling(
+        allowed_updates=['message', 'callback_query'],
+        drop_pending_updates=True
+    )
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
