@@ -33,7 +33,48 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         from handlers.start_handler import show_main_menu
         await show_main_menu(update, context)
     elif action == "announcements":
-        await show_announcements_menu(update, context)
+async def show_catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show catalog link"""
+    keyboard = [
+        [InlineKeyboardButton("📚 Открыть каталог", url="https://t.me/trixvault")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
+    ]
+    
+    text = (
+        "📚 *Каталог TRIX*\n\n"
+        "Полный каталог услуг, товаров и предложений\n"
+        "от участников сообщества.\n\n"
+        "Нажмите кнопку ниже, чтобы перейти в каталог:"
+    )
+    
+    await update.callback_query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
+
+async def start_piar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start Services form (renamed from Piar)"""
+    context.user_data['piar_data'] = {}
+    context.user_data['waiting_for'] = 'piar_name'
+    
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]]
+
+    text = (
+        "💼 *Предложить услугу*\n\n"
+        "Шаг 1 из 7\n"
+        "Введите ваше имя:"
+    )
+    
+    try:
+        await update.callback_query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Error in start_piar: {e}")
+        await update.callback_query.answer("Ошибка. Попробуйте позже", show_alert=True)
     elif action == "news":
         await start_category_post(update, context, "🗯️ Будапешт", "📺 Новости")
     elif action == "overheard":
