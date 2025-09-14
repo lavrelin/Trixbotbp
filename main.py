@@ -3,7 +3,6 @@
 
 import logging
 import asyncio
-import nest_asyncio
 from telegram.ext import (
     Application, 
     CommandHandler, 
@@ -12,22 +11,7 @@ from telegram.ext import (
     filters
 )
 
-# Позволяем вложенные event loops для Railway
-nest_asyncio.apply()
-
 from config import Config
-from handlers.start_handler import start_command, help_command
-from handlers.menu_handler import handle_menu_callback
-from handlers.publication_handler import (
-    handle_publication_callback, 
-    handle_text_input, 
-    handle_media_input
-)
-from handlers.piar_handler import (
-    handle_piar_callback, 
-    handle_piar_text,
-    handle_piar_photo
-)
 
 # Configure logging first
 logging.basicConfig(
@@ -36,7 +20,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Попытка импорта admin handlers с обработкой ошибки
+# Основные импорты
+try:
+    from handlers.start_handler import start_command, help_command
+    from handlers.menu_handler import handle_menu_callback
+    from handlers.publication_handler import (
+        handle_publication_callback, 
+        handle_text_input, 
+        handle_media_input
+    )
+    from handlers.piar_handler import (
+        handle_piar_callback, 
+        handle_piar_text,
+        handle_piar_photo
+    )
+    CORE_HANDLERS_AVAILABLE = True
+    logger.info("Core handlers loaded successfully")
+except ImportError as e:
+    logger.error(f"Failed to load core handlers: {e}")
+    CORE_HANDLERS_AVAILABLE = False
+
+# Дополнительные импорты с обработкой ошибок
 try:
     from handlers.admin_handler import (
         admin_command, 
@@ -45,112 +49,120 @@ try:
         handle_admin_callback
     )
     ADMIN_HANDLERS_AVAILABLE = True
+    logger.info("Admin handlers loaded")
 except ImportError as e:
     logger.warning(f"Admin handlers not available: {e}")
     ADMIN_HANDLERS_AVAILABLE = False
 
-# Попытка импорта других handlers
 try:
     from handlers.profile_handler import handle_profile_callback
     PROFILE_HANDLER_AVAILABLE = True
+    logger.info("Profile handler loaded")
 except ImportError:
     PROFILE_HANDLER_AVAILABLE = False
 
 try:
     from handlers.moderation_handler import handle_moderation_callback
     MODERATION_HANDLER_AVAILABLE = True
+    logger.info("Moderation handler loaded")
 except ImportError:
     MODERATION_HANDLER_AVAILABLE = False
 
 try:
-    from handlers.scheduler_handler import (
-        SchedulerHandler,
-        scheduler_command
-    )
-    SCHEDULER_AVAILABLE = True
-except ImportError:
-    SCHEDULER_AVAILABLE = False
-
-from services.db import db
-from services.cooldown import CooldownService
+    from services.db import db
+    from services.cooldown import CooldownService
+    DB_AVAILABLE = True
+    logger.info("Database services loaded")
+except ImportError as e:
+    logger.error(f"Database services not available: {e}")
+    DB_AVAILABLE = False
 
 class TrixBot:
     def __init__(self):
         self.application = None
-        self.scheduler = None
     
     async def setup(self):
         """Setup bot application and services"""
         try:
             # Create application
             self.application = Application.builder().token(Config.BOT_TOKEN).build()
+            logger.info("Telegram application created")
             
-            # Initialize database
-            await db.init()
-            logger.info("Database initialized successfully")
-            
-            # Initialize cooldown service
-            CooldownService()
-            
-            # Setup scheduler
-            if Config.SCHEDULER_ENABLED and SCHEDULER_AVAILABLE:
-                self.scheduler = SchedulerHandler()
-                await self.scheduler.start()
+            # Initialize database if available
+            if DB_AVAILABLE:
+                try:
+                    await db.init()
+                    logger.info("Database initialized successfully")
+                    
+                    # Initialize cooldown service
+                    CooldownService()
+                    logger.info("Cooldown service initialized")
+                except Exception as e:
+                    logger.error(f"Database initialization failed: {e}")
             
             # Add handlers
             self._add_handlers()
             
             logger.info("Bot setup complete")
+            
         except Exception as e:
             logger.error(f"Error during bot setup: {e}")
             raise
     
     def _add_handlers(self):
         """Add all command and callback handlers"""
+        if not CORE_HANDLERS_AVAILABLE:
+            logger.error("Core handlers not available - bot cannot function properly")
+            return
+            
         app = self.application
         
         try:
             # Command handlers
             app.add_handler(CommandHandler("start", start_command))
             app.add_handler(CommandHandler("help", help_command))
+            logger.info("Basic command handlers added")
             
             # Admin handlers (если доступны)
             if ADMIN_HANDLERS_AVAILABLE:
                 app.add_handler(CommandHandler("admin", admin_command))
                 app.add_handler(CommandHandler("stats", stats_command))
                 app.add_handler(CommandHandler("broadcast", broadcast_command))
-            
-            if SCHEDULER_AVAILABLE:
-                app.add_handler(CommandHandler("scheduler", scheduler_command))
+                logger.info("Admin command handlers added")
             
             # Callback query handlers
             app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^menu:"))
             app.add_handler(CallbackQueryHandler(handle_publication_callback, pattern="^pub:"))
             app.add_handler(CallbackQueryHandler(handle_piar_callback, pattern="^piar:"))
+            logger.info("Core callback handlers added")
             
             if PROFILE_HANDLER_AVAILABLE:
                 app.add_handler(CallbackQueryHandler(handle_profile_callback, pattern="^profile:"))
+                logger.info("Profile callback handler added")
             
             if MODERATION_HANDLER_AVAILABLE:
                 app.add_handler(CallbackQueryHandler(handle_moderation_callback, pattern="^mod:"))
+                logger.info("Moderation callback handler added")
             
             if ADMIN_HANDLERS_AVAILABLE:
                 app.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^admin:"))
+                logger.info("Admin callback handler added")
             
-            # Message handlers with priority order
-            # Media handler (higher priority) - только фото и видео для стабильности
+            # Message handlers - только фото и видео для стабильности
             app.add_handler(MessageHandler(
                 filters.PHOTO | filters.VIDEO,
                 self._handle_media_message
             ))
+            logger.info("Media handler added")
             
-            # Text handler (lower priority) - активация любым сообщением
+            # Text handler - активация любым сообщением
             app.add_handler(MessageHandler(
                 filters.TEXT & ~filters.COMMAND,
                 self._handle_text_message
             ))
+            logger.info("Text handler added")
             
-            logger.info("Handlers added successfully")
+            logger.info("All handlers added successfully")
             
         except Exception as e:
             logger.error(f"Error adding handlers: {e}")
@@ -162,32 +174,39 @@ class TrixBot:
             user_id = update.effective_user.id
             waiting_for = context.user_data.get('waiting_for')
             
-            # Если пользователь новый или нет активного состояния - показать главное меню
+            logger.debug(f"Text message from user {user_id}, waiting_for: {waiting_for}")
+            
+            # Если пользователь новый или нет активного состояния
             if not waiting_for:
-                # Проверяем, зарегистрирован ли пользователь
-                try:
-                    from services.db import db
-                    from models import User
-                    from sqlalchemy import select
-                    
-                    async with db.get_session() as session:
-                        result = await session.execute(
-                            select(User).where(User.id == user_id)
-                        )
-                        user = result.scalar_one_or_none()
+                if DB_AVAILABLE:
+                    try:
+                        from services.db import db
+                        from models import User
+                        from sqlalchemy import select
                         
-                        if not user:
-                            # Новый пользователь - запускаем команду start
-                            await start_command(update, context)
-                            return
-                        else:
-                            # Существующий пользователь - показываем главное меню
-                            from handlers.start_handler import show_main_menu
-                            await show_main_menu(update, context)
-                            return
-                except Exception as e:
-                    logger.error(f"Error checking user: {e}")
-                    # В случае ошибки БД показываем меню
+                        async with db.get_session() as session:
+                            result = await session.execute(
+                                select(User).where(User.id == user_id)
+                            )
+                            user = result.scalar_one_or_none()
+                            
+                            if not user:
+                                # Новый пользователь
+                                await start_command(update, context)
+                                return
+                            else:
+                                # Существующий пользователь - показываем главное меню
+                                from handlers.start_handler import show_main_menu
+                                await show_main_menu(update, context)
+                                return
+                    except Exception as e:
+                        logger.error(f"Error checking user in DB: {e}")
+                        # Fallback - показать меню
+                        from handlers.start_handler import show_main_menu
+                        await show_main_menu(update, context)
+                        return
+                else:
+                    # Если БД недоступна, просто показываем меню
                     from handlers.start_handler import show_main_menu
                     await show_main_menu(update, context)
                     return
@@ -202,17 +221,24 @@ class TrixBot:
                 await handle_text_input(update, context)
             else:
                 logger.warning(f"Unhandled waiting_for state: {waiting_for}")
-                # Показать главное меню при неизвестном состоянии
                 from handlers.start_handler import show_main_menu
                 await show_main_menu(update, context)
                 
         except Exception as e:
             logger.error(f"Error handling text message: {e}")
+            # Fallback - показать главное меню
+            try:
+                from handlers.start_handler import show_main_menu
+                await show_main_menu(update, context)
+            except:
+                await update.message.reply_text("Произошла ошибка. Попробуйте /start")
     
     async def _handle_media_message(self, update, context):
         """Route media messages to appropriate handler"""
         try:
             waiting_for = context.user_data.get('waiting_for')
+            
+            logger.debug(f"Media message, waiting_for: {waiting_for}")
             
             # Handle media for publications
             if 'post_data' in context.user_data:
@@ -238,7 +264,7 @@ class TrixBot:
             
             logger.info("Starting bot polling...")
             
-            # Используем run_polling без создания нового event loop
+            # Используем run_polling
             await self.application.run_polling(
                 allowed_updates=['message', 'callback_query'],
                 drop_pending_updates=True
@@ -253,29 +279,29 @@ class TrixBot:
     async def cleanup(self):
         """Cleanup resources"""
         try:
-            if self.scheduler:
-                await self.scheduler.stop()
-            
-            if hasattr(db, 'close'):
+            if DB_AVAILABLE and hasattr(db, 'close'):
                 await db.close()
             
             logger.info("Bot cleanup complete")
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
 
-async def start_bot():
-    """Async function to start the bot"""
-    bot = TrixBot()
-    await bot.run()
-
 def main():
-    """Main entry point for Railway"""
+    """Main entry point"""
+    logger.info("Starting TrixBot...")
+    
     bot = TrixBot()
     
-    # Простой запуск без проверки event loop
-    import asyncio
-    asyncio.set_event_loop(asyncio.new_event_loop())
-    asyncio.get_event_loop().run_until_complete(bot.run())
+    try:
+        # Простой запуск
+        asyncio.run(bot.run())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Bot crashed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise
 
 if __name__ == '__main__':
     main()
