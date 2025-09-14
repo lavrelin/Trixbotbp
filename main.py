@@ -130,7 +130,7 @@ class TrixBot:
         # Message handlers with priority order
         # Media handler (higher priority)
         app.add_handler(MessageHandler(
-            filters.PHOTO | filters.VIDEO | filters.DOCUMENT,
+            filters.PHOTO | filters.VIDEO | filters.Document.ALL,
             self._handle_media_message
         ))
         
