@@ -326,102 +326,125 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send post to moderation"""
+    """Send post to moderation with safe DB handling"""
     user_id = update.effective_user.id
     
-    # Check cooldown
-    cooldown_service = CooldownService()
-    can_post, remaining = await cooldown_service.can_post(user_id)
-    
-    if not can_post:
-        minutes = remaining // 60
-        hours = minutes // 60
-        mins = minutes % 60
+    try:
+        # Check cooldown
+        from services.cooldown import CooldownService
+        cooldown_service = CooldownService()
+        can_post, remaining = await cooldown_service.can_post(user_id)
         
-        if hours > 0:
-            time_str = f"{hours} ч. {mins} мин."
-        else:
-            time_str = f"{minutes} мин."
+        if not can_post:
+            minutes = remaining // 60
+            hours = minutes // 60
+            mins = minutes % 60
             
-        await update.callback_query.answer(
-            f"⏰ Подождите еще {time_str} перед следующей публикацией",
-            show_alert=True
-        )
-        return
+            if hours > 0:
+                time_str = f"{hours} ч. {mins} мин."
+            else:
+                time_str = f"{minutes} мин."
+                
+            await update.callback_query.answer(
+                f"⏰ Подождите еще {time_str} перед следующей публикацией",
+                show_alert=True
+            )
+            return
+    except Exception as e:
+        logger.warning(f"Cooldown check failed: {e}")
+        # Продолжаем без проверки кулдауна
     
     post_data = context.user_data.get('post_data', {})
     
-    # Save to database
-    async with db.get_session() as session:
-        # Get user
-        result = await session.execute(
-            select(User).where(User.id == user_id)
-        )
-        user = result.scalar_one_or_none()
+    # Save to database with error handling
+    try:
+        from services.db import db
+        from models import User, Post, PostStatus
+        from services.hashtags import HashtagService
+        from sqlalchemy import select
         
-        if not user:
-            await update.callback_query.answer("❌ Ошибка: пользователь не найден", show_alert=True)
-            return
-        
-        # Create post
-        hashtag_service = HashtagService()
-        hashtags = hashtag_service.generate_hashtags(
-            post_data.get('category'),
-            post_data.get('subcategory')
-        )
-        
-        post = Post(
-            user_id=user_id,
-            category=post_data.get('category'),
-            subcategory=post_data.get('subcategory'),
-            text=post_data.get('text', ''),
-            media=post_data.get('media', []),
-            hashtags=hashtags,
-            anonymous=post_data.get('anonymous', False),
-            status=PostStatus.PENDING
-        )
-        
-        session.add(post)
-        await session.commit()
-        
-        # Send to moderation group
-        await send_to_moderation_group(update, context, post, user)
-        
-        # Update cooldown
-        await cooldown_service.update_cooldown(user_id)
-        
-        # Clear user data
-        context.user_data.pop('post_data', None)
-        context.user_data.pop('waiting_for', None)
-        
-        # Calculate next post time
-        cooldown_minutes = Config.COOLDOWN_SECONDS // 60
-        hours = cooldown_minutes // 60
-        mins = cooldown_minutes % 60
-        
-        if hours > 0:
-            next_post_time = f"{hours} часа {mins} минут"
-        else:
-            next_post_time = f"{cooldown_minutes} минут"
+        async with db.get_session() as session:
+            # Get user
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                await update.callback_query.answer("❌ Ошибка: пользователь не найден", show_alert=True)
+                return
+            
+            # Create post
+            hashtag_service = HashtagService()
+            hashtags = hashtag_service.generate_hashtags(
+                post_data.get('category'),
+                post_data.get('subcategory')
+            )
+            
+            post = Post(
+                user_id=user_id,
+                category=post_data.get('category'),
+                subcategory=post_data.get('subcategory'),
+                text=post_data.get('text', ''),
+                media=post_data.get('media', []),
+                hashtags=hashtags,
+                anonymous=post_data.get('anonymous', False),
+                status=PostStatus.PENDING
+            )
+            
+            session.add(post)
+            await session.commit()
+            
+            # Send to moderation group
+            await send_to_moderation_group(update, context, post, user)
+            
+            # Update cooldown
+            try:
+                from services.cooldown import CooldownService
+                cooldown_service = CooldownService()
+                await cooldown_service.update_cooldown(user_id)
+            except Exception as e:
+                logger.warning(f"Cooldown update failed: {e}")
+            
+            # Clear user data
+            context.user_data.pop('post_data', None)
+            context.user_data.pop('waiting_for', None)
+            
+            # Calculate next post time
+            cooldown_minutes = Config.COOLDOWN_SECONDS // 60
+            hours = cooldown_minutes // 60
+            mins = cooldown_minutes % 60
+            
+            if hours > 0:
+                next_post_time = f"{hours} часа {mins} минут"
+            else:
+                next_post_time = f"{cooldown_minutes} минут"
 
-        # Show success message with channel promotion
-        success_keyboard = [
-            [InlineKeyboardButton("📺 Топ канал Будапешта", url="https://t.me/snghu")],
-            [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
-            [InlineKeyboardButton("🏠 Главное меню", callback_data="menu:back")]
-        ]
-        
-        # =========================
-        # Сообщение пользователю после отправки на модерацию
-        # =========================
+            # Show success message with channel promotion
+            success_keyboard = [
+                [InlineKeyboardButton("📺 Топ канал Будапешта", url="https://t.me/snghu")],
+                [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
+                [InlineKeyboardButton("🏠 Главное меню", callback_data="menu:back")]
+            ]
+            
+            # =========================
+            # Сообщение пользователю после отправки на модерацию
+            # =========================
+            await update.callback_query.edit_message_text(
+                f"🤳 *Поздравляю, ваша публикация успешно отправлена*\n\n"
+                f"📝 Этот шедевр уже в руках модераторов!\n"
+                f"📬 После проверки и коррекции вы будете уведомлены о результате\n\n"
+                f"😴 Следующий пост можно отправить через {next_post_time}\n\n"
+                f"🧑‍✈️ *Загляните в наши каналы, там каждый найдет то что ищет :*",
+                reply_markup=InlineKeyboardMarkup(success_keyboard),
+                parse_mode='Markdown'
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in send_to_moderation: {e}")
         await update.callback_query.edit_message_text(
-            f"🤳 *Поздравляю, ваша публикация успешно отправлена*\n\n"
-            f"📝 Этот шедевр уже в руках модераторов!\n"
-            f"📬 После проверки и коррекции вы будете уведомлены о результате\n\n"
-            f"😴 Следующий пост можно отправить через {next_post_time}\n\n"
-            f"🧑‍✈️ *Загляните в наши каналы, там каждый найдет то что ищет :*",
-            reply_markup=InlineKeyboardMarkup(success_keyboard),
-            parse_mode='Markdown'
+            "❌ Произошла ошибка при отправке поста.\n"
+            "Попробуйте позже или обратитесь к администратору."
         )
 
 async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT_TYPE, 
