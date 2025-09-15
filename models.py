@@ -1,4 +1,3 @@
-from models import User, Post
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, JSON, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
