@@ -1,73 +1,67 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from services.db import db
-from models import User
-from sqlalchemy import select
 import logging
 
 logger = logging.getLogger(__name__)
 
 async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show user profile"""
-    user_id = update.effective_user.id
+    """Show user profile with safe DB handling"""
     user = update.effective_user
     
+    keyboard = [
+        [InlineKeyboardButton("◀️ Главное меню", callback_data="menu:back")]
+    ]
+    
+    # Базовая информация профиля без БД
+    profile_text = (
+        f"👤 *Ваш профиль*\n\n"
+        f"🆔 ID: {user.id}\n"
+        f"👋 Имя: {user.first_name or 'Не указано'}\n"
+    )
+    
+    if user.username:
+        profile_text += f"📧 Username: @{user.username}\n"
+    
+    # Пытаемся получить данные из БД, но не падаем если ошибка
     try:
-        # Получаем данные пользователя из БД
+        from services.db import db
+        from models import User
+        from sqlalchemy import select
+        
         async with db.get_session() as session:
             result = await session.execute(
-                select(User).where(User.id == user_id)
+                select(User).where(User.id == user.id)
             )
             db_user = result.scalar_one_or_none()
-        
-        keyboard = [
-            [InlineKeyboardButton("◀️ Главное меню", callback_data="menu:back")]
-        ]
-        
-        profile_text = (
-            f"👤 *Ваш профиль*\n\n"
-            f"🆔 ID: {user.id}\n"
-            f"👋 Имя: {user.first_name or 'Не указано'}\n"
-        )
-        
-        if user.username:
-            profile_text += f"📧 Username: @{user.username}\n"
-        
-        if db_user:
-            profile_text += f"📅 Регистрация: {db_user.created_at.strftime('%d.%m.%Y')}\n"
-            if hasattr(db_user, 'posts_count'):
-                profile_text += f"📝 Публикаций: {db_user.posts_count or 0}\n"
-        
-        profile_text += f"\n💼 Статус: Активный пользователь"
-        
-        try:
-            if update.callback_query:
-                await update.callback_query.edit_message_text(
-                    profile_text,
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode='Markdown'
-                )
-            else:
-                await update.effective_message.reply_text(
-                    profile_text,
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode='Markdown'
-                )
-        except Exception as e:
-            logger.error(f"Error showing profile: {e}")
+            
+            if db_user:
+                profile_text += f"📅 Регистрация: {db_user.created_at.strftime('%d.%m.%Y')}\n"
+            
+    except Exception as e:
+        logger.warning(f"Could not load profile data from DB: {e}")
+        # Продолжаем показывать профиль без данных из БД
+    
+    profile_text += f"\n💼 Статус: Активный пользователь"
+    
+    try:
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                profile_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+        else:
             await update.effective_message.reply_text(
                 profile_text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='Markdown'
             )
-            
     except Exception as e:
-        logger.error(f"Error in show_profile: {e}")
+        logger.error(f"Error showing profile: {e}")
+        # Fallback без форматирования
         await update.effective_message.reply_text(
-            "❌ Ошибка загрузки профиля. Попробуйте позже.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("◀️ Главное меню", callback_data="menu:back")]
-            ])
+            f"Ваш профиль\n\nID: {user.id}\nИмя: {user.first_name or 'Не указано'}",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
 async def handle_profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,5 +69,4 @@ async def handle_profile_callback(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
     
-    # Пока только показываем профиль
     await show_profile(update, context)
