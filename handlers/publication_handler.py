@@ -404,16 +404,16 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
         mins = cooldown_minutes % 60
         
         if hours > 0:
-            next_post_time = f"{hours} часа {mins} минут"
-        else:
-            next_post_time = f"{cooldown_minutes} минут"
-        
-        # Show success message with channel promotion
-        success_keyboard = [
-            [InlineKeyboardButton("📺 Наш канал", url="https://t.me/snghu")],
-            [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
-            [InlineKeyboardButton("🏠 Главное меню", callback_data="menu:back")]
-        ]
+    next_post_time = f"{hours} часа {mins} минут"
+else:
+    next_post_time = f"{cooldown_minutes} минут"
+
+# Show success message with channel promotion
+success_keyboard = [
+    [InlineKeyboardButton("🙅‍♀️ Топ канал Будапешта", url="https://t.me/snghu")],
+    [InlineKeyboardButton("🙅 Каталог услуг", url="https://t.me/trixvault")],
+    [InlineKeyboardButton("🙅‍♂️ Главное меню", callback_data="menu:back")]
+]
         
         await update.callback_query.edit_message_text(
             f"✅ *Отправлено на модерацию!*\n\n"
