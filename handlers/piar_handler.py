@@ -2,6 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMe
 from telegram.ext import ContextTypes
 from config import Config
 import logging
+from models import Post, User
 
 logger = logging.getLogger(__name__)
 
