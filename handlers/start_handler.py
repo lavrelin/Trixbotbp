@@ -1,9 +1,5 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from services.db import db
-from models import User, Gender
-from sqlalchemy import select
-from datetime import datetime
 import logging
 import secrets
 import string
@@ -11,33 +7,44 @@ import string
 logger = logging.getLogger(__name__)
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command"""
+    """Handle /start command with safe DB handling"""
     user_id = update.effective_user.id
     username = update.effective_user.username
     first_name = update.effective_user.first_name
     last_name = update.effective_user.last_name
     
-    async with db.get_session() as session:
-        # Check if user exists
-        result = await session.execute(
-            select(User).where(User.id == user_id)
-        )
-        user = result.scalar_one_or_none()
+    # Пытаемся сохранить пользователя в БД, но не падаем если ошибка
+    try:
+        from services.db import db
+        from models import User, Gender
+        from sqlalchemy import select
+        from datetime import datetime
         
-        if not user:
-            # Create new user immediately with default values
-            new_user = User(
-                id=user_id,
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
-                gender=Gender.UNKNOWN,
-                referral_code=generate_referral_code(),
-                created_at=datetime.utcnow()
+        async with db.get_session() as session:
+            # Check if user exists
+            result = await session.execute(
+                select(User).where(User.id == user_id)
             )
-            session.add(new_user)
-            await session.commit()
-            logger.info(f"Created new user: {user_id}")
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                # Create new user immediately with default values
+                new_user = User(
+                    id=user_id,
+                    username=username,
+                    first_name=first_name,
+                    last_name=last_name,
+                    gender=Gender.UNKNOWN,
+                    referral_code=generate_referral_code(),
+                    created_at=datetime.utcnow()
+                )
+                session.add(new_user)
+                await session.commit()
+                logger.info(f"Created new user: {user_id}")
+                
+    except Exception as e:
+        logger.warning(f"Could not save user to DB: {e}")
+        # Продолжаем работу без БД
     
     # Always show main menu
     await show_main_menu(update, context)
@@ -77,12 +84,18 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logger.error(f"Error showing main menu: {e}")
-        # Если не можем отредактировать, отправим новое сообщение
-        await update.effective_message.reply_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
+        # Fallback без форматирования
+        try:
+            await update.effective_message.reply_text(
+                "Главное меню\n\nВыберите раздел:",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception as e2:
+            logger.error(f"Fallback menu also failed: {e2}")
+            # Последний fallback - простое текстовое сообщение
+            await update.effective_message.reply_text(
+                "Бот запущен! Используйте /start для перезапуска."
+            )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command with links to community"""
@@ -129,10 +142,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logger.error(f"Error showing help: {e}")
+        # Fallback без форматирования
         await update.effective_message.reply_text(
-            help_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
+            "Помощь по использованию бота\n\n"
+            "Основные команды:\n"
+            "/start - главное меню\n"
+            "/help - эта помощь\n\n"
+            "Все посты проходят модерацию.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
 def generate_referral_code():
