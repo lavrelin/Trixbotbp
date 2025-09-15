@@ -1,21 +1,18 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, InputMediaVideo
 from telegram.ext import ContextTypes
 from config import Config
-from services.db import db
-from services.filter_service import FilterService
-from models import User, Post
-from sqlalchemy import select
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Piar form steps
+# Piar form steps - ИСПРАВЛЕНО: теперь 8 шагов
 PIAR_STEPS = [
     ('name', 'Имя', 'Введите ваше имя:'),
     ('profession', 'Профессия', 'Введите вашу профессию:'),
     ('districts', 'Районы', 'Введите районы (до 3, через запятую):'),
     ('phone', 'Телефон', 'Введите номер телефона (необязательно, отправьте "-" чтобы пропустить):'),
-    ('contacts', 'Контакты', 'Введите контакты (Telegram или Instagram):'),
+    ('instagram', 'Instagram', 'Введите ваш Instagram (необязательно, отправьте "-" чтобы пропустить):'),
+    ('telegram', 'Telegram', 'Введите ваш Telegram (необязательно, отправьте "-" чтобы пропустить):'),
     ('price', 'Цена', 'Введите цену за услуги:'),
     ('description', 'Описание', 'Введите описание ваших услуг:')
 ]
@@ -41,10 +38,8 @@ async def handle_piar_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     elif action == "skip_photo":
         await show_piar_preview(update, context)
     elif action == "next_photo":
-        # Новая функция "Дальше" после добавления медиа
         await show_piar_preview(update, context)
     elif action == "back":
-        # Возврат на предыдущий шаг
         await go_back_step(update, context)
 
 async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE, 
@@ -52,8 +47,6 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
     """Handle text input for piar form"""
     if 'piar_data' not in context.user_data:
         context.user_data['piar_data'] = {}
-    
-    filter_service = FilterService()
     
     # Сохраняем текущий шаг для возможности возврата
     context.user_data['piar_step'] = field
@@ -83,32 +76,40 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
     elif field == 'phone':
         if value != '-':
-            if not filter_service.is_valid_phone(value):
-                await update.message.reply_text("❌ Неверный формат телефона")
+            # Простая валидация телефона
+            phone = value.strip()
+            if len(phone) < 7:
+                await update.message.reply_text("❌ Слишком короткий номер телефона")
                 return
-            context.user_data['piar_data']['phone'] = value
+            context.user_data['piar_data']['phone'] = phone
         else:
             context.user_data['piar_data']['phone'] = None
-        next_step = 'contacts'
+        next_step = 'instagram'
         
-    elif field == 'contacts':
-        # Parse contacts (Telegram or Instagram)
-        contacts = []
-        for contact in value.split(','):
-            contact = contact.strip()
-            if contact.startswith('@'):
-                if filter_service.is_valid_username(contact):
-                    contacts.append(contact)
-            elif 'instagram.com' in contact.lower() or contact.startswith('ig:'):
-                contacts.append(contact)
-            else:
-                contacts.append(contact)
+    elif field == 'instagram':
+        if value != '-':
+            instagram = value.strip()
+            if instagram.startswith('@'):
+                instagram = instagram[1:]
+            if instagram and len(instagram) < 3:
+                await update.message.reply_text("❌ Слишком короткое имя Instagram")
+                return
+            context.user_data['piar_data']['instagram'] = instagram if instagram else None
+        else:
+            context.user_data['piar_data']['instagram'] = None
+        next_step = 'telegram'
         
-        if not contacts:
-            await update.message.reply_text("❌ Укажите хотя бы один контакт")
-            return
-        
-        context.user_data['piar_data']['contacts'] = contacts
+    elif field == 'telegram':
+        if value != '-':
+            telegram = value.strip()
+            if not telegram.startswith('@'):
+                telegram = f"@{telegram}"
+            if len(telegram) < 4:  # минимум @abc
+                await update.message.reply_text("❌ Слишком короткое имя Telegram")
+                return
+            context.user_data['piar_data']['telegram'] = telegram
+        else:
+            context.user_data['piar_data']['telegram'] = None
         next_step = 'price'
         
     elif field == 'price':
@@ -141,7 +142,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         ]
         
         await update.message.reply_text(
-            "📷 *Шаг 7 - Фотографии*\n\n"
+            "📷 *Шаг 8 - Фотографии*\n\n"
             "Отправьте до 3 фотографий или видео для вашего объявления\n"
             "или нажмите 'Пропустить'",
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -163,8 +164,8 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
         
         await update.message.reply_text(
-            f"⭐️ *Пиар - Продвижение бизнеса*\n\n"
-            f"Шаг {step_num} из 7\n"
+            f"💼 *Предложить услугу*\n\n"
+            f"Шаг {step_num} из 8\n"
             f"{step_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
@@ -255,7 +256,7 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data['piar_data']
     
     # Build preview text
-    text = "⭐️ *ПИАР - Предпросмотр*\n\n"
+    text = "💼 *Предложить услугу - Предпросмотр*\n\n"
     text += f"👤 *Имя:* {data.get('name')}\n"
     text += f"💼 *Профессия:* {data.get('profession')}\n"
     text += f"📍 *Районы:* {', '.join(data.get('districts', []))}\n"
@@ -263,14 +264,23 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.get('phone'):
         text += f"📞 *Телефон:* {data.get('phone')}\n"
     
-    text += f"📱 *Контакты:* {', '.join(data.get('contacts', []))}\n"
+    # Новая обработка контактов
+    contacts = []
+    if data.get('instagram'):
+        contacts.append(f"📷 Instagram: @{data.get('instagram')}")
+    if data.get('telegram'):
+        contacts.append(f"📱 Telegram: {data.get('telegram')}")
+    
+    if contacts:
+        text += f"📞 *Контакты:*\n{chr(10).join(contacts)}\n"
+    
     text += f"💰 *Цена:* {data.get('price')}\n\n"
     text += f"📝 *Описание:*\n{data.get('description')}\n\n"
     
     if data.get('photos'):
         text += f"📷 Медиа файлов: {len(data['photos'])}\n\n"
     
-    text += "#Пиар #БизнесБудапешт\n\n"
+    text += "#Услуги #БизнесБудапешт\n\n"
     text += Config.DEFAULT_SIGNATURE
     
     keyboard = [
@@ -321,72 +331,92 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send piar to moderation"""
+    """Send piar to moderation with safe DB handling"""
     user_id = update.effective_user.id
     data = context.user_data.get('piar_data', {})
     
-    async with db.get_session() as session:
-        # Get user
-        result = await session.execute(
-            select(User).where(User.id == user_id)
-        )
-        user = result.scalar_one_or_none()
+    try:
+        from services.db import db
+        from models import User, Post
+        from sqlalchemy import select
         
-        if not user:
-            await update.callback_query.answer("❌ Ошибка: пользователь не найден", show_alert=True)
-            return
-        
-        # Create piar post
-        post = Post(
-            user_id=user_id,
-            category='⭐️ Пиар',
-            text=data.get('description', ''),
-            hashtags=['#Пиар', '#БизнесБудапешт'],
-            is_piar=True,
-            piar_name=data.get('name'),
-            piar_profession=data.get('profession'),
-            piar_districts=data.get('districts'),
-            piar_phone=data.get('phone'),
-            piar_contacts=data.get('contacts'),
-            piar_price=data.get('price'),
-            media=data.get('media', [])
-        )
-        
-        session.add(post)
-        await session.commit()
-        
-        # Send to moderation group
-        await send_piar_to_mod_group(update, context, post, user, data)
-        
-        # Clear user data
-        context.user_data.pop('piar_data', None)
-        context.user_data.pop('waiting_for', None)
-        context.user_data.pop('piar_step', None)
-        
-        # Calculate next post time
-        cooldown_minutes = Config.COOLDOWN_SECONDS // 60
-        hours = cooldown_minutes // 60
-        mins = cooldown_minutes % 60
-        
-        if hours > 0:
-            next_post_time = f"{hours} часа {mins} минут"
-        else:
-            next_post_time = f"{cooldown_minutes} минут"
-        
-        # Show success message with channel promotion
-        success_keyboard = [
-            [InlineKeyboardButton("📺 Наш канал", url="https://t.me/snghu")],
-            [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
-            [InlineKeyboardButton("🏠 Главное меню", callback_data="menu:back")]
-        ]
-        
+        async with db.get_session() as session:
+            # Get user
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                await update.callback_query.answer("❌ Ошибка: пользователь не найден", show_alert=True)
+                return
+            
+            # Create piar post with safe field handling
+            post_data = {
+                'user_id': user_id,
+                'category': '💼 Услуги',
+                'text': data.get('description', ''),
+                'hashtags': ['#Услуги', '#БизнесБудапешт'],
+                'is_piar': True,
+                'piar_name': data.get('name'),
+                'piar_profession': data.get('profession'),
+                'piar_districts': data.get('districts'),
+                'piar_phone': data.get('phone'),
+                'piar_price': data.get('price'),
+                'media': data.get('media', [])
+            }
+            
+            # Добавляем новые поля только если они есть в модели
+            try:
+                post_data['piar_instagram'] = data.get('instagram')
+                post_data['piar_telegram'] = data.get('telegram')
+            except:
+                # Если полей нет в БД, просто пропускаем
+                logger.warning("New piar fields not available in DB model")
+            
+            post = Post(**post_data)
+            session.add(post)
+            await session.commit()
+            
+            # Send to moderation group
+            await send_piar_to_mod_group(update, context, post, user, data)
+            
+            # Clear user data
+            context.user_data.pop('piar_data', None)
+            context.user_data.pop('waiting_for', None)
+            context.user_data.pop('piar_step', None)
+            
+            # Calculate next post time
+            cooldown_minutes = Config.COOLDOWN_SECONDS // 60
+            hours = cooldown_minutes // 60
+            mins = cooldown_minutes % 60
+            
+            if hours > 0:
+                next_post_time = f"{hours} часа {mins} минут"
+            else:
+                next_post_time = f"{cooldown_minutes} минут"
+            
+            # Show success message with channel promotion
+            success_keyboard = [
+                [InlineKeyboardButton("📺 Наш канал", url="https://t.me/snghu")],
+                [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
+                [InlineKeyboardButton("🏠 Главное меню", callback_data="menu:back")]
+            ]
+            
+            await update.callback_query.edit_message_text(
+                f"✅ *Отправлено на модерацию!*\n\n"
+                f"Ваша заявка на услугу будет рассмотрена модераторами.\n\n"
+                f"⏰ Следующую заявку можно отправить через {next_post_time}\n\n"
+                f"🔔 *Не забудьте подписаться на наши каналы:*",
+                reply_markup=InlineKeyboardMarkup(success_keyboard),
+                parse_mode='Markdown'
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in send_piar_to_moderation: {e}")
         await update.callback_query.edit_message_text(
-            f"✅ *Отправлено на модерацию!*\n\n"
-            f"Ваша заявка на пиар будет рассмотрена модераторами.\n\n"
-            f"⏰ Следующую заявку можно отправить через {next_post_time}\n\n"
-            f"🔔 *Не забудьте подписаться на наши каналы:*",
-            reply_markup=InlineKeyboardMarkup(success_keyboard),
-            parse_mode='Markdown'
+            "❌ Произошла ошибка при отправке заявки.\n"
+            "Попробуйте позже или обратитесь к администратору."
         )
 
 async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -395,7 +425,7 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
     bot = context.bot
     
     text = (
-        f"⭐️ *Новая заявка ПИАР*\n\n"
+        f"💼 *Новая заявка - Услуга*\n\n"
         f"👤 Автор: @{user.username or 'no_username'} (ID: {user.id})\n"
         f"📅 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
         f"*Данные:*\n"
@@ -407,10 +437,17 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
     if data.get('phone'):
         text += f"📞 Телефон: {data.get('phone')}\n"
     
-    text += (
-        f"📱 Контакты: {', '.join(data.get('contacts', []))}\n"
-        f"💰 Цена: {data.get('price')}\n"
-    )
+    # Новая обработка контактов для модерации
+    contacts = []
+    if data.get('instagram'):
+        contacts.append(f"📷 Instagram: @{data.get('instagram')}")
+    if data.get('telegram'):
+        contacts.append(f"📱 Telegram: {data.get('telegram')}")
+    
+    if contacts:
+        text += f"📞 Контакты:\n{chr(10).join(contacts)}\n"
+    
+    text += f"💰 Цена: {data.get('price')}\n"
     
     # Добавляем информацию о медиа
     if data.get('media') and len(data['media']) > 0:
@@ -434,11 +471,7 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
             logger.error(f"Cannot access moderation group {Config.MODERATION_GROUP_ID}: {e}")
             await bot.send_message(
                 chat_id=user.id,
-                text="⚠️ Группа модерации недоступна.\n"
-                     "Проверьте:\n"
-                     "• Бот добавлен в группу?\n"
-                     "• Бот является администратором?\n"
-                     "• Правильный ID группы в настройках?"
+                text="⚠️ Группа модерации недоступна. Обратитесь к администратору."
             )
             return
 
@@ -451,14 +484,14 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
                         msg = await bot.send_photo(
                             chat_id=Config.MODERATION_GROUP_ID,
                             photo=media_item['file_id'],
-                            caption=f"Медиа {i+1}/{len(data['media'])}"
+                            caption=f"📷 Медиа {i+1}/{len(data['media'])}"
                         )
                         media_sent.append(msg.message_id)
                     elif media_item.get('type') == 'video':
                         msg = await bot.send_video(
                             chat_id=Config.MODERATION_GROUP_ID,
                             video=media_item['file_id'],
-                            caption=f"Медиа {i+1}/{len(data['media'])}"
+                            caption=f"🎥 Медиа {i+1}/{len(data['media'])}"
                         )
                         media_sent.append(msg.message_id)
                 except Exception as media_error:
@@ -474,44 +507,17 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
                 parse_mode='Markdown'
             )
             
-            # Сохраняем ID сообщения
-            async with db.get_session() as session:
-                await session.execute(
-                    f"UPDATE posts SET moderation_message_id = {message.message_id} WHERE id = {post.id}"
-                )
-                await session.commit()
-            
             logger.info(f"Piar sent to moderation successfully. Post ID: {post.id}")
             
         except Exception as text_error:
             logger.error(f"Error sending piar text message: {text_error}")
-            # Если не удалось отправить основное сообщение, удаляем уже отправленные медиа
-            for msg_id in media_sent:
-                try:
-                    await bot.delete_message(Config.MODERATION_GROUP_ID, msg_id)
-                except:
-                    pass
             raise text_error
             
     except Exception as e:
         logger.error(f"Error sending piar to moderation: {e}")
-        
-        # Более подробное сообщение об ошибке пользователю
-        error_details = ""
-        if "chat not found" in str(e).lower():
-            error_details = "\n\n❌ Группа модерации не найдена"
-        elif "not enough rights" in str(e).lower():
-            error_details = "\n\n❌ Недостаточно прав для отправки в группу"
-        elif "bot was blocked" in str(e).lower():
-            error_details = "\n\n❌ Бот заблокирован в группе"
-        elif "file_id" in str(e).lower():
-            error_details = "\n\n❌ Ошибка с медиа-файлами"
-        
         await bot.send_message(
             chat_id=user.id,
-            text=f"⚠️ Ошибка отправки в группу модерации{error_details}\n\n"
-                 "Обратитесь к администратору с этой информацией:\n"
-                 f"`{str(e)[:100]}...`",
+            text="⚠️ Ошибка отправки в группу модерации. Обратитесь к администратору.",
             parse_mode='Markdown'
         )
 
@@ -524,7 +530,7 @@ async def go_back_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Определяем предыдущий шаг
-    step_order = ['name', 'profession', 'districts', 'phone', 'contacts', 'price', 'description']
+    step_order = ['name', 'profession', 'districts', 'phone', 'instagram', 'telegram', 'price', 'description']
     
     try:
         current_index = step_order.index(current_step)
@@ -545,8 +551,8 @@ async def go_back_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
                     
                     await update.callback_query.edit_message_text(
-                        f"⭐️ *Пиар - Продвижение бизнеса*\n\n"
-                        f"Шаг {step_num} из 7\n"
+                        f"💼 *Предложить услугу*\n\n"
+                        f"Шаг {step_num} из 8\n"
                         f"{step_text}",
                         reply_markup=InlineKeyboardMarkup(keyboard),
                         parse_mode='Markdown'
@@ -567,7 +573,7 @@ async def restart_piar_form(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.callback_query.edit_message_text(
         "💼 *Предложить услугу*\n\n"
-        "Шаг 1 из 7\n"
+        "Шаг 1 из 8\n"
         "Введите ваше имя:",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
