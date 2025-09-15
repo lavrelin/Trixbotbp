@@ -52,38 +52,43 @@ async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE
         'free': '📦 Отдам даром',
         'important': '🌪️ Важно',
         'other': '❔ Другое'
-    }
-    
-    context.user_data['post_data'] = {
-        'category': '🗯️ Будапешт',
-        'subcategory': subcategory_names.get(subcategory, '❔ Другое'),
-        'anonymous': False
-    }
-    
-    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:announcements")]]
-    
-    await update.callback_query.edit_message_text(
-        f"🗯️ Будапешт → 🗣️ Объявления → {subcategory_names.get(subcategory)}\n\n"
-        "Отправьте текст вашего объявления и/или фото/видео:",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
-    )
-    
-    context.user_data['waiting_for'] = 'post_text'
+# Сохраняем данные поста
+context.user_data['post_data'] = {
+    'category': '🗯️ Будапешт',
+    'subcategory': subcategory_names.get(subcategory, '❔ Другое'),
+    'anonymous': False
+}
+
+# Кнопки для дальнейших действий
+keyboard = [
+    [
+        InlineKeyboardButton("🏙️ Прикрепить медиа", callback_data="pub:add_media"),
+        InlineKeyboardButton("🥸 Предпросмотр", callback_data="pub:preview")
+    ],
+    [InlineKeyboardButton("🚶‍♀️ Вернуться", callback_data="menu:back")]
+]
+
+await update.message.reply_text(
+    "🧐 Текст готов!\n\n"
+    "Добавьте медиа и просмотрите пост перед отправкой на модерацию.",
+    reply_markup=InlineKeyboardMarkup(keyboard)
+)
+
+context.user_data['waiting_for'] = 'post_text'
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle text input from user"""
+    """Обработка текста от пользователя"""
     
-    # Проверяем, есть ли медиа в сообщении вместе с текстом
+    # Проверяем, есть ли медиа вместе с текстом
     has_media = update.message.photo or update.message.video or update.message.document
     
-    # Если есть медиа и текст вместе (caption)
+    # Если медиа и текст одновременно (caption)
     if has_media and update.message.caption:
         text = update.message.caption
         
-        # Если ждем текст поста
+        # Если ждём текст поста
         if context.user_data.get('waiting_for') == 'post_text':
-            # Проверяем на запрещенные ссылки
+            # Проверяем на запрещённые ссылки
             filter_service = FilterService()
             if filter_service.contains_banned_link(text) and not Config.is_moderator(update.effective_user.id):
                 await handle_link_violation(update, context)
