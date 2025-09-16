@@ -15,18 +15,20 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     
     logger.info(f"Menu callback action: {action}")
     
-    if action == "budapest":
+    if action == "write":
+        from handlers.start_handler import show_write_menu
+        await show_write_menu(update, context)
+    elif action == "read":
+        from handlers.start_handler import show_main_menu
+        await show_main_menu(update, context)
+    elif action == "budapest":
         await show_budapest_menu(update, context)
     elif action == "catalog":
         await show_catalog(update, context)
-    elif action == "services":  # Изменили с "piar" на "services"
+    elif action == "services":  # Заявка в каталог услуг (бывший пиар)
         await start_piar(update, context)
-    elif action == "profile":
-        from handlers.profile_handler import show_profile
-        await show_profile(update, context)
-    elif action == "help":
-        from handlers.start_handler import help_command
-        await help_command(update, context)
+    elif action == "actual":  # НОВЫЙ РАЗДЕЛ
+        await start_actual_post(update, context)
     elif action == "back":
         from handlers.start_handler import show_main_menu
         await show_main_menu(update, context)
@@ -49,11 +51,11 @@ async def show_budapest_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         [InlineKeyboardButton("📺 Новости", callback_data="menu:news")],
         [InlineKeyboardButton("🤐 Подслушано (анонимно)", callback_data="menu:overheard")],
         [InlineKeyboardButton("🤮 Жалобы (анонимно)", callback_data="menu:complaints")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
+        [InlineKeyboardButton("◀️ Назад", callback_data="menu:write")]
     ]
     
     text = (
-        "🗯️ *Будапешт*\n\n"
+        "🗯️ *Пост в Будапешт*\n\n"
         "Выберите тип публикации:\n\n"
         "🗣️ *Объявления* - работа, аренда, купля/продажа\n"
         "📺 *Новости* - актуальная информация\n"
@@ -112,7 +114,7 @@ async def show_catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show catalog link"""
     keyboard = [
         [InlineKeyboardButton("📚 Открыть каталог", url="https://t.me/trixvault")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]
+        [InlineKeyboardButton("◀️ Назад", callback_data="menu:write")]
     ]
     
     text = (
@@ -133,11 +135,11 @@ async def start_piar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['piar_data'] = {}
     context.user_data['waiting_for'] = 'piar_name'
     
-    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:back")]]
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:write")]]
 
     text = (
-        "💼 *Предложить услугу*\n\n"
-        "Шаг 1 из 7\n"
+        "💥 *Заявка в каталог услуг*\n\n"
+        "Шаг 1 из 8\n"
         "Введите ваше имя:"
     )
     
@@ -149,6 +151,43 @@ async def start_piar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(f"Error in start_piar: {e}")
+        await update.callback_query.answer("Ошибка. Попробуйте позже", show_alert=True)
+
+async def start_actual_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start Actual post creation - НОВЫЙ РАЗДЕЛ"""
+    context.user_data['post_data'] = {
+        'category': '⚡️ Актуальное',
+        'subcategory': None,
+        'anonymous': False,
+        'is_actual': True  # Специальный флаг для актуального
+    }
+    
+    keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="menu:write")]]
+    
+    text = (
+        "⚡️ *Актуальное*\n\n"
+        "📝 *Инструкция:*\n"
+        "Этот раздел предназначен для важных и срочных сообщений, "
+        "которые будут опубликованы в чате Будапешта и закреплены администраторами.\n\n"
+        
+        "🎯 *Подходит для:*\n"
+        "• Срочные объявления\n"
+        "• Важная информация\n"
+        "• Экстренные сообщения\n"
+        "• Актуальные новости\n\n"
+        
+        "📝 Отправьте текст вашего сообщения и/или до 3 медиа файлов:"
+    )
+    
+    try:
+        await update.callback_query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+        context.user_data['waiting_for'] = 'post_text'
+    except Exception as e:
+        logger.error(f"Error in start_actual_post: {e}")
         await update.callback_query.answer("Ошибка. Попробуйте позже", show_alert=True)
 
 async def start_category_post(update: Update, context: ContextTypes.DEFAULT_TYPE, 
@@ -166,7 +205,7 @@ async def start_category_post(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     text = (
         f"{category} → {subcategory}{anon_text}\n\n"
-        "Отправьте текст вашей публикации и/или фото/видео:"
+        "📝 Отправьте текст вашей публикации и/или фото/видео:"
     )
     
     try:
