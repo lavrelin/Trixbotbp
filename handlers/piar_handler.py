@@ -318,10 +318,8 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ИСПРАВЛЕНО: Потом показываем текст с кнопками (последнее сообщение)
     try:
         await update.effective_message.reply_text(
-        await update.effective_message.reply_text(
             text,
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
     except Exception as e:
@@ -329,8 +327,6 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(
             text,
             reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-            parse_mode='Markdown'
         )
 
 async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
