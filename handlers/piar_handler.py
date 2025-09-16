@@ -2,7 +2,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMe
 from telegram.ext import ContextTypes
 from config import Config
 import logging
-from models import Post, User
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
     # Сохраняем текущий шаг для возможности возврата
     context.user_data['piar_step'] = field
     
-    # Validate and save field
+    # Validate and save field - УБРАНА ПРОВЕРКА ССЫЛОК
     if field == 'name':
         if len(value) > 100:
             await update.message.reply_text("❌ Имя слишком длинное (макс. 100 символов)")
@@ -77,7 +76,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
     elif field == 'phone':
         if value != '-':
-            # Простая валидация телефона
+            # Простая валидация телефона - ССЫЛКИ РАЗРЕШЕНЫ
             phone = value.strip()
             if len(phone) < 7:
                 await update.message.reply_text("❌ Слишком короткий номер телефона")
@@ -89,12 +88,10 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
     elif field == 'instagram':
         if value != '-':
+            # ССЫЛКИ РАЗРЕШЕНЫ в Instagram
             instagram = value.strip()
             if instagram.startswith('@'):
                 instagram = instagram[1:]
-            if instagram and len(instagram) < 3:
-                await update.message.reply_text("❌ Слишком короткое имя Instagram")
-                return
             context.user_data['piar_data']['instagram'] = instagram if instagram else None
         else:
             context.user_data['piar_data']['instagram'] = None
@@ -102,12 +99,10 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
     elif field == 'telegram':
         if value != '-':
+            # ССЫЛКИ РАЗРЕШЕНЫ в Telegram
             telegram = value.strip()
-            if not telegram.startswith('@'):
+            if not telegram.startswith('@') and not telegram.startswith('https://t.me/'):
                 telegram = f"@{telegram}"
-            if len(telegram) < 4:  # минимум @abc
-                await update.message.reply_text("❌ Слишком короткое имя Telegram")
-                return
             context.user_data['piar_data']['telegram'] = telegram
         else:
             context.user_data['piar_data']['telegram'] = None
@@ -249,7 +244,7 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show piar preview with media"""
+    """Show piar preview with media first, then buttons"""
     if 'piar_data' not in context.user_data:
         await update.callback_query.edit_message_text("❌ Данные не найдены")
         return
@@ -292,42 +287,49 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
     ]
     
-    # Send photos preview if exist
+    # ИСПРАВЛЕНО: Сначала удаляем старое сообщение с кнопками
+    try:
+        if update.callback_query:
+            await update.callback_query.delete_message()
+    except:
+        pass
+    
+    # ИСПРАВЛЕНО: Сначала показываем медиа, если есть
     if data.get('media'):
         try:
-            for media_item in data['media'][:3]:  # Показываем до 3 медиа
+            for i, media_item in enumerate(data['media'][:3]):  # Показываем до 3 медиа
+                caption = None
+                if i == 0:  # Первое медиа с подписью
+                    caption = f"📷 Медиа файлы ({len(data['media'])} шт.)"
+                
                 if media_item.get('type') == 'photo':
                     await update.effective_message.reply_photo(
                         photo=media_item['file_id'],
-                        caption="📷 Прикрепленное фото"
+                        caption=caption
                     )
                 elif media_item.get('type') == 'video':
                     await update.effective_message.reply_video(
                         video=media_item['file_id'],
-                        caption="🎥 Прикрепленное видео"
+                        caption=caption
                     )
         except Exception as e:
             logger.error(f"Error showing piar media preview: {e}")
     
-    # Send preview text
+    # ИСПРАВЛЕНО: Потом показываем текст с кнопками (последнее сообщение)
     try:
-        if update.callback_query:
-            await update.callback_query.edit_message_text(
-                text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
-        else:
-            await update.effective_message.reply_text(
-                text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
+        await update.effective_message.reply_text(
+        await update.effective_message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+            parse_mode='Markdown'
+        )
     except Exception as e:
         logger.error(f"Error showing piar preview: {e}")
         await update.effective_message.reply_text(
             text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
             parse_mode='Markdown'
         )
 
@@ -349,10 +351,12 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             user = result.scalar_one_or_none()
             
             if not user:
-                await update.callback_query.answer("❌ Ошибка: пользователь не найден", show_alert=True)
+                await update.callback_query.edit_message_text(
+                    "🚨 Ошибка при отправке. Попробуйте еще раз /start При повторной неудаче обратитесь к администратору @trixilvebot 💥"
+                )
                 return
             
-            # Create piar post with safe field handling
+            # Create piar post without new fields first
             post_data = {
                 'user_id': user_id,
                 'category': '💼 Услуги',
@@ -367,13 +371,13 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
                 'media': data.get('media', [])
             }
             
-            # Добавляем новые поля только если они есть в модели
+            # Safely add new fields if they exist in DB
             try:
                 post_data['piar_instagram'] = data.get('instagram')
                 post_data['piar_telegram'] = data.get('telegram')
-            except:
-                # Если полей нет в БД, просто пропускаем
-                logger.warning("New piar fields not available in DB model")
+            except Exception as field_error:
+                logger.warning(f"New piar fields not available: {field_error}")
+                # Continue without new fields
             
             post = Post(**post_data)
             session.add(post)
@@ -416,8 +420,7 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
     except Exception as e:
         logger.error(f"Error in send_piar_to_moderation: {e}")
         await update.callback_query.edit_message_text(
-            "❌ Произошла ошибка при отправке заявки.\n"
-            "Попробуйте позже или обратитесь к администратору."
+            "🚨 Ошибка при отправке. Попробуйте еще раз /start При повторной неудаче обратитесь к администратору @trixilvebot 💥"
         )
 
 async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_TYPE,
