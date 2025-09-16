@@ -50,23 +50,30 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_main_menu(update, context)
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show main menu with updated order"""
+    """Show new main menu design"""
+    
+    # Новые кнопки для главного меню
     keyboard = [
-        [InlineKeyboardButton("🗯️ Будапешт", callback_data="menu:budapest")],
-        [InlineKeyboardButton("💼 Предложить услугу", callback_data="menu:services")],
-        [InlineKeyboardButton("📚 Каталог", callback_data="menu:catalog")],
-        [
-            InlineKeyboardButton("👤 Профиль", callback_data="menu:profile"),
-            InlineKeyboardButton("ℹ️ Помощь", callback_data="menu:help")
-        ]
+        [InlineKeyboardButton("🙅‍♂️ Будапешт - канал", url="https://t.me/snghu")],
+        [InlineKeyboardButton("🙅‍♀️ Будапешт - чат", url="https://t.me/tgchatxxx")],
+        [InlineKeyboardButton("🙅 Будапешт - каталог услуг", url="https://t.me/trixvault")],
+        [InlineKeyboardButton("🚶‍♀️‍➡️ Писать", callback_data="menu:write")]
     ]
     
+    # Новый текст главного меню с описанием
     text = (
-        "🏠 *Главное меню*\n\n"
-        "Выберите раздел:\n\n"
-        "🗯️ *Будапешт* - объявления, новости, подслушано\n"
-        "💼 *Предложить услугу* - продвижение бизнеса\n"
-        "📚 *Каталог* - каталог услуг и товаров\n"
+        "🤖 *Добро пожаловать в TrixBot!*\n\n"
+        "🎯 *Ваш помощник для публикаций в Будапеште*\n\n"
+        
+        "📺 *Наши каналы и группы:*\n"
+        "🙅‍♂️ *Канал* - основные публикации и новости\n"
+        "🙅‍♀️ *Чат* - живое общение и обсуждения\n"
+        "🙅 *Каталог* - все услуги и товары\n\n"
+        
+        "✍️ *Хотите что-то опубликовать?*\n"
+        "Нажмите 🚶‍♀️‍➡️ *Писать* и выберите тип публикации\n\n"
+        
+        "⚡️ Быстро • 🎯 Удобно • 🔒 Безопасно"
     )
     
     try:
@@ -87,70 +94,57 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Fallback без форматирования
         try:
             await update.effective_message.reply_text(
-                "Главное меню\n\nВыберите раздел:",
+                "TrixBot - Ваш помощник для публикаций в Будапеште\n\n"
+                "Нажмите 'Писать' чтобы создать публикацию",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e2:
             logger.error(f"Fallback menu also failed: {e2}")
-            # Последний fallback - простое текстовое сообщение
             await update.effective_message.reply_text(
                 "Бот запущен! Используйте /start для перезапуска."
             )
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command with links to community"""
+async def show_write_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show write menu with publication types"""
+    
     keyboard = [
-        [InlineKeyboardButton("📺 Канал SNGHU", url="https://t.me/snghu")],
-        [InlineKeyboardButton("💬 Чат для общения", url="https://t.me/tgchatxxx")],
-        [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
-        [InlineKeyboardButton("◀️ Главное меню", callback_data="menu:back")]
+        [InlineKeyboardButton("🗯️ Пост в Будапешт", callback_data="menu:budapest")],
+        [InlineKeyboardButton("💥 Заявка в каталог услуг", callback_data="menu:services")],
+        [InlineKeyboardButton("⚡️ Актуальное", callback_data="menu:actual")],
+        [InlineKeyboardButton("🚶‍♀️ Читать", callback_data="menu:read")]
     ]
     
-    help_text = (
-        "📖 *Помощь по использованию бота*\n\n"
-        "🔸 /start - главное меню\n"
-        "🔸 /profile - ваш профиль\n"
-        "🔸 /help - эта помощь\n\n"
-        "*Как опубликовать пост:*\n"
-        "1. Выберите категорию в главном меню\n"
-        "2. Выберите подкатегорию (если есть)\n"
-        "3. Отправьте текст и/или медиа\n"
-        "4. Проверьте предпросмотр\n"
-        "5. Отправьте на модерацию\n\n"
-        "*Правила:*\n"
-        "• Между постами минимум 94 минуты\n"
-        "• Запрещены ссылки\n"
-        "• Все посты проходят модерацию\n\n"
-        "*Наше сообщество:*\n"
-        "📺 Главный канал для публикаций\n"
-        "💬 Чат для живого общения\n"
-        "📚 Каталог всех услуг и товаров"
+    text = (
+        "✍️ *Выберите тип публикации:*\n\n"
+        
+        "🗯️ *Пост в Будапешт*\n"
+        "Объявления, новости, подслушанное и жалобы\n\n"
+        
+        "💥 *Заявка в каталог услуг*\n"
+        "Продвижение вашего бизнеса и услуг\n\n"
+        
+        "⚡️ *Актуальное*\n"
+        "Важные и срочные сообщения для чата\n\n"
+        
+        "🚶‍♀️ *Читать* - вернуться на главную"
     )
     
     try:
-        if update.callback_query:
-            await update.callback_query.edit_message_text(
-                help_text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
-        else:
-            await update.effective_message.reply_text(
-                help_text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
+        await update.callback_query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
     except Exception as e:
-        logger.error(f"Error showing help: {e}")
-        # Fallback без форматирования
-        await update.effective_message.reply_text(
-            "Помощь по использованию бота\n\n"
-            "Основные команды:\n"
-            "/start - главное меню\n"
-            "/help - эта помощь\n\n"
-            "Все посты проходят модерацию.",
+        logger.error(f"Error showing write menu: {e}")
+        await update.callback_query.edit_message_text(
+            "Выберите тип публикации:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command - теперь показывает главное меню"""
+    await show_main_menu(update, context)
 
 def generate_referral_code():
     """Generate unique referral code"""
