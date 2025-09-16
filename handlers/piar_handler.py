@@ -1,6 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, InputMediaVideo
 from telegram.ext import ContextTypes
 from config import Config
+from models import User, Post  # ИСПРАВЛЕНО: добавлен импорт моделей
 import logging
 
 logger = logging.getLogger(__name__)
