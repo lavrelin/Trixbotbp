@@ -11,6 +11,7 @@ class Config:
     # Channels and groups
     TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID", "-1002743668534"))
     MODERATION_GROUP_ID = int(os.getenv("MODERATION_GROUP_ID", "-1002734837434"))
+    CHAT_FOR_ACTUAL = int(os.getenv("CHAT_FOR_ACTUAL", "-1002734837434"))  # ID чата для актуальных постов (временно = модерации)
     CHAT_FOR_ADS = os.getenv("CHAT_FOR_ADS", "https://t.me/tgchatxxx")
     
     # Database
