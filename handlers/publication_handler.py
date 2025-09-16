@@ -263,10 +263,15 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Generate hashtags
     hashtag_service = HashtagService()
-    hashtags = hashtag_service.generate_hashtags(
-        post_data.get('category'),
-        post_data.get('subcategory')
-    )
+    
+    # Специальные хештеги для Актуального
+    if post_data.get('is_actual'):
+        hashtags = ['#Актуальное⚡️', '@Trixlivebot']
+    else:
+        hashtags = hashtag_service.generate_hashtags(
+            post_data.get('category'),
+            post_data.get('subcategory')
+        )
     
     # Build preview text
     preview_text = f"{post_data.get('text', '')}\n\n"
@@ -581,78 +586,6 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
                 f"• Бот добавлен в группу модерации?\n"
                 f"• Бот является администратором группы?\n"
                 f"• ID группы: {target_group}\n\n"
-                f"Обратитесь к администратору."
-            ),
-            parse_mode='Markdown'
-        ) {i+1}: {e}")
-        
-        # Затем отправляем текст с кнопками
-        message = await bot.send_message(
-            chat_id=target_group,
-            text=mod_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-        
-        # Сохраняем ID сообщения
-        async with db.get_session() as session:
-            await session.execute(
-                f"UPDATE posts SET moderation_message_id = {message.message_id} WHERE id = {post.id}"
-            )
-            await session.commit()
-        
-        logger.info(f"Post {post.id} sent to moderation with {len(media_messages)} media files")
-            
-    except Exception as e:
-        logger.error(f"Error sending to moderation group: {e}")
-        # Отправляем подробное сообщение об ошибке
-        error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
-        
-        await bot.send_message(
-            chat_id=user.id,
-            text=(
-                f"⚠️ Ошибка отправки в группу модерации\n\n"
-                f"Детали ошибки:\n`{error_details}`\n\n"
-                f"Проверьте:\n"
-                f"• Бот добавлен в группу модерации?\n"
-                f"• Бот является администратором группы?\n"
-                f"• ID группы: {target_group}\n\n"
-                f"Обратитесь к администратору."
-            ),
-            parse_mode='Markdown'
-        ) {i+1}: {e}")
-        
-        # Затем отправляем текст с кнопками
-        message = await bot.send_message(
-            chat_id=Config.MODERATION_GROUP_ID,
-            text=mod_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-        
-        # Сохраняем ID сообщения
-        async with db.get_session() as session:
-            await session.execute(
-                f"UPDATE posts SET moderation_message_id = {message.message_id} WHERE id = {post.id}"
-            )
-            await session.commit()
-        
-        logger.info(f"Post {post.id} sent to moderation with {len(media_messages)} media files")
-            
-    except Exception as e:
-        logger.error(f"Error sending to moderation group: {e}")
-        # Отправляем подробное сообщение об ошибке
-        error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
-        
-        await bot.send_message(
-            chat_id=user.id,
-            text=(
-                f"⚠️ Ошибка отправки в группу модерации\n\n"
-                f"Детали ошибки:\n`{error_details}`\n\n"
-                f"Проверьте:\n"
-                f"• Бот добавлен в группу модерации?\n"
-                f"• Бот является администратором группы?\n"
-                f"• ID группы: {Config.MODERATION_GROUP_ID}\n\n"
                 f"Обратитесь к администратору."
             ),
             parse_mode='Markdown'
