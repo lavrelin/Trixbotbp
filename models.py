@@ -26,7 +26,7 @@ class User(Base):
     gender = Column(Enum(Gender), default=Gender.UNKNOWN)
     referral_code = Column(String(255), unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # УБРАН updated_at - его нет в БД
 
 class Post(Base):
     __tablename__ = 'posts'
@@ -42,7 +42,7 @@ class Post(Base):
     status = Column(Enum(PostStatus), default=PostStatus.PENDING)
     moderation_message_id = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # УБРАН updated_at - его нет в БД
     
     # Piar specific fields
     is_piar = Column(Boolean, default=False)
@@ -50,6 +50,6 @@ class Post(Base):
     piar_profession = Column(String(255))
     piar_districts = Column(JSON)
     piar_phone = Column(String(255))
-    piar_instagram = Column(String(255))  # НОВОЕ ПОЛЕ
-    piar_telegram = Column(String(255))   # НОВОЕ ПОЛЕ
+    piar_instagram = Column(String(255))  
+    piar_telegram = Column(String(255))   
     piar_price = Column(String(255))
