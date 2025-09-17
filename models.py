@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, JSON, Enum
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, Boolean, Text, JSON, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -19,20 +19,19 @@ class PostStatus(enum.Enum):
 class User(Base):
     __tablename__ = 'users'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)  # ИЗМЕНЕНО: BigInteger для Telegram ID
     username = Column(String(255))
     first_name = Column(String(255))
     last_name = Column(String(255))
     gender = Column(Enum(Gender), default=Gender.UNKNOWN)
     referral_code = Column(String(255), unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    # УБРАН updated_at - его нет в БД
 
 class Post(Base):
     __tablename__ = 'posts'
     
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False)
+    user_id = Column(BigInteger, nullable=False)  # ИЗМЕНЕНО: BigInteger для Telegram ID
     category = Column(String(255))
     subcategory = Column(String(255))
     text = Column(Text)
@@ -42,7 +41,6 @@ class Post(Base):
     status = Column(Enum(PostStatus), default=PostStatus.PENDING)
     moderation_message_id = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow)
-    # УБРАН updated_at - его нет в БД
     
     # Piar specific fields
     is_piar = Column(Boolean, default=False)
