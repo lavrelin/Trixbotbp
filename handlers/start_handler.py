@@ -37,6 +37,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     gender=Gender.UNKNOWN,
                     referral_code=generate_referral_code(),
                     created_at=datetime.utcnow()
+                    # УБРАН updated_at - его нет в БД модели
                 )
                 session.add(new_user)
                 await session.commit()
