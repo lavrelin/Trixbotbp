@@ -563,12 +563,17 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
             parse_mode='Markdown'
         )
         
-        # Сохраняем ID сообщения
-        async with db.get_session() as session:
-            await session.execute(
-                f"UPDATE posts SET moderation_message_id = {message.message_id} WHERE id = {post.id}"
-            )
-            await session.commit()
+        # Сохраняем ID сообщения безопасно
+        try:
+            from sqlalchemy import text
+            async with db.get_session() as session:
+                await session.execute(
+                    text("UPDATE posts SET moderation_message_id = :msg_id WHERE id = :post_id"),
+                    {"msg_id": message.message_id, "post_id": str(post.id)}
+                )
+                await session.commit()
+        except Exception as save_error:
+            logger.error(f"Error saving moderation_message_id: {save_error}")
         
         logger.info(f"Post {post.id} sent to moderation with {len(media_messages)} media files")
             
