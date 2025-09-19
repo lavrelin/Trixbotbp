@@ -1,7 +1,9 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, InputMediaVideo
 from telegram.ext import ContextTypes
 from config import Config
+from services.db import db
 from models import User, Post  # ИСПРАВЛЕНО: добавлен импорт моделей
+from sqlalchemy import select
 import logging
 
 logger = logging.getLogger(__name__)
@@ -336,10 +338,6 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
     data = context.user_data.get('piar_data', {})
     
     try:
-        from services.db import db
-        from models import User, Post
-        from sqlalchemy import select
-        
         async with db.get_session() as session:
             # Get user
             result = await session.execute(
@@ -381,7 +379,7 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             await session.commit()
             
             # Send to moderation group
-            await send_piar_to_mod_group(update, context, post, user, data)
+            await send_piar_to_mod_group_safe(update, context, post, user, data)
             
             # Clear user data
             context.user_data.pop('piar_data', None)
@@ -420,41 +418,60 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             "🚨 Ошибка при отправке. Попробуйте еще раз /start При повторной неудаче обратитесь к администратору @trixilvebot 💥"
         )
 
-async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                                 post: Post, user: User, data: dict):
-    """Send piar to moderation group with improved error handling"""
+async def send_piar_to_mod_group_safe(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                     post: Post, user: User, data: dict):
+    """Send piar to moderation group with safe text handling"""
     bot = context.bot
     
+    def escape_markdown(text):
+        """Экранирует специальные символы"""
+        if not text:
+            return text
+        text = str(text)
+        text = text.replace('*', '\\*')
+        text = text.replace('_', '\\_')
+        text = text.replace('[', '\\[')
+        text = text.replace(']', '\\]')
+        text = text.replace('`', '\\`')
+        return text
+    
+    # Безопасное сообщение без markdown
+    username = user.username or 'no_username'
+    
     text = (
-        f"💼 *Новая заявка - Услуга*\n\n"
-        f"👤 Автор: @{user.username or 'no_username'} (ID: {user.id})\n"
+        f"💼 Новая заявка - Услуга\n\n"
+        f"👤 Автор: @{username} (ID: {user.id})\n"
         f"📅 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        f"*Данные:*\n"
-        f"👤 Имя: {data.get('name')}\n"
-        f"💼 Профессия: {data.get('profession')}\n"
-        f"📍 Районы: {', '.join(data.get('districts', []))}\n"
+        f"Данные:\n"
+        f"👤 Имя: {escape_markdown(data.get('name', ''))}\n"
+        f"💼 Профессия: {escape_markdown(data.get('profession', ''))}\n"
+        f"📍 Районы: {escape_markdown(', '.join(data.get('districts', [])))}\n"
     )
     
     if data.get('phone'):
-        text += f"📞 Телефон: {data.get('phone')}\n"
+        text += f"📞 Телефон: {escape_markdown(data.get('phone'))}\n"
     
     # Новая обработка контактов для модерации
     contacts = []
     if data.get('instagram'):
-        contacts.append(f"📷 Instagram: @{data.get('instagram')}")
+        contacts.append(f"📷 Instagram: @{escape_markdown(data.get('instagram'))}")
     if data.get('telegram'):
-        contacts.append(f"📱 Telegram: {data.get('telegram')}")
+        contacts.append(f"📱 Telegram: {escape_markdown(data.get('telegram'))}")
     
     if contacts:
         text += f"📞 Контакты:\n{chr(10).join(contacts)}\n"
     
-    text += f"💰 Цена: {data.get('price')}\n"
+    text += f"💰 Цена: {escape_markdown(data.get('price', ''))}\n"
     
     # Добавляем информацию о медиа
     if data.get('media') and len(data['media']) > 0:
         text += f"📎 Медиа: {len(data['media'])} файл(ов)\n"
     
-    text += f"\n📝 Описание:\n{data.get('description')}"
+    # Безопасно добавляем описание
+    description = data.get('description', '')[:300]
+    if len(data.get('description', '')) > 300:
+        description += "..."
+    text += f"\n📝 Описание:\n{escape_markdown(description)}"
     
     keyboard = [
         [InlineKeyboardButton("💬 Написать автору", url=f"tg://user?id={user.id}")],
@@ -499,16 +516,28 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
                     logger.error(f"Error sending piar media {i+1}: {media_error}")
                     continue
         
-        # Отправляем основное сообщение с кнопками
+        # Отправляем основное сообщение с кнопками БЕЗ parse_mode
         try:
             message = await bot.send_message(
                 chat_id=Config.MODERATION_GROUP_ID,
                 text=text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
+                reply_markup=InlineKeyboardMarkup(keyboard)
+                # УБРАН parse_mode='Markdown'
             )
             
             logger.info(f"Piar sent to moderation successfully. Post ID: {post.id}")
+            
+            # Сохраняем ID сообщения безопасно
+            try:
+                from sqlalchemy import text as sql_text
+                async with db.get_session() as session:
+                    await session.execute(
+                        sql_text("UPDATE posts SET moderation_message_id = :msg_id WHERE id = :post_id"),
+                        {"msg_id": message.message_id, "post_id": str(post.id)}
+                    )
+                    await session.commit()
+            except Exception as save_error:
+                logger.error(f"Error saving moderation_message_id for piar: {save_error}")
             
         except Exception as text_error:
             logger.error(f"Error sending piar text message: {text_error}")
@@ -518,8 +547,7 @@ async def send_piar_to_mod_group(update: Update, context: ContextTypes.DEFAULT_T
         logger.error(f"Error sending piar to moderation: {e}")
         await bot.send_message(
             chat_id=user.id,
-            text="⚠️ Ошибка отправки в группу модерации. Обратитесь к администратору.",
-            parse_mode='Markdown'
+            text="⚠️ Ошибка отправки в группу модерации. Обратитесь к администратору."
         )
 
 async def go_back_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
