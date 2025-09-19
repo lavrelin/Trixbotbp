@@ -6,7 +6,7 @@ from models import User, Post
 from sqlalchemy import select
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) 
 
 # Piar form steps - 8 шагов, красиво оформлены для Telegram
 PIAR_STEPS = [
@@ -267,7 +267,7 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Всегда показываем кнопку "Дальше"
         keyboard.append([
-            InlineKeyboardButton("🩵 Продолжить", callback_data="piar:next_photo")
+            InlineKeyboardButton("🩵 Предпросмотр", callback_data="piar:next_photo")
         ])
         
         keyboard.append([InlineKeyboardButton("🔙 Вернуться назад", callback_data="piar:back")])
@@ -490,7 +490,7 @@ async def send_piar_to_mod_group_safe(update: Update, context: ContextTypes.DEFA
     username = user.username or 'no_username'
     
     text = (
-        f"⭐️ Новая заявка - Услуга\n\n"
+        f"⭐️ Новая заявка - в Каталог Услуг\n\n"
         f"🧍‍♂️ Автор: @{username} (ID: {user.id})\n"
         f"😱 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
         f"Данные:\n"
