@@ -14,6 +14,9 @@ class Config:
     CHAT_FOR_ACTUAL = int(os.getenv("CHAT_FOR_ACTUAL", "-1002734837434"))  # ID чата для актуальных постов (временно = модерации)
     CHAT_FOR_ADS = os.getenv("CHAT_FOR_ADS", "https://t.me/tgchatxxx")
     
+    # Новый канал для барахолки
+    TRADE_CHANNEL_ID = int(os.getenv("TRADE_CHANNEL_ID", "-1003033694255"))  # https://t.me/hungarytrade
+    
     # Database
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:pass@localhost/trixbot")
     
