@@ -62,7 +62,7 @@ except ImportError:
     PROFILE_HANDLER_AVAILABLE = False
 
 try:
-    from handlers.moderation_handler import handle_moderation_callback
+    from handlers.moderation_handler import handle_moderation_callback, handle_moderation_text
     MODERATION_HANDLER_AVAILABLE = True
     logger.info("Moderation handler loaded")
 except ImportError:
@@ -175,6 +175,13 @@ class TrixBot:
             waiting_for = context.user_data.get('waiting_for')
             
             logger.debug(f"Text message from user {user_id}, waiting_for: {waiting_for}")
+            
+            # НОВОЕ: Проверяем, если это модератор и он отправляет ответ на заявку
+            if MODERATION_HANDLER_AVAILABLE and Config.is_moderator(user_id):
+                mod_waiting_for = context.user_data.get('mod_waiting_for')
+                if mod_waiting_for in ['approve_link', 'reject_reason']:
+                    await handle_moderation_text(update, context)
+                    return
             
             if not waiting_for:
                 if DB_AVAILABLE:
