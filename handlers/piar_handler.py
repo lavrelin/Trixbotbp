@@ -223,8 +223,8 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("👹 Отмена", callback_data="piar:cancel")])
         
         await update.message.reply_text(
-            f"📶 Медиа файлы получено! (Всего: {len(photos)})\n\n"
-            f"➡️ Можно добавить еще или перейдём к предпросмотру?",
+            f"💾 Медиа файлы получено! (Всего: {len(photos)})\n\n"
+            f"➕ Можно добавить еще или перейдём к предпросмотру?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -236,8 +236,8 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     remaining = Config.MAX_PHOTOS_PIAR - photos_count
     
     keyboard = [
-        [InlineKeyboardButton("▶️ Дальше", callback_data="piar:next_photo")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="piar:back")],
+        [InlineKeyboardButton("👉 Продолжить", callback_data="piar:next_photo")],
+        [InlineKeyboardButton("👈 Вернуться назад", callback_data="piar:back")],
         [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
     ]
     
@@ -249,13 +249,13 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show piar preview with media first, then buttons"""
     if 'piar_data' not in context.user_data:
-        await update.callback_query.edit_message_text("❌ Данные не найдены")
+        await update.callback_query.edit_message_text("👹 К сожалению данные не найдены")
         return
     
     data = context.user_data['piar_data']
     
     # Build preview text
-    text = "💼 *Предложить услугу - Предпросмотр*\n\n"
+    text = "🤹🏼 *Предложить услугу - Предпросмотр*\n\n"
     text += f"👤 *Имя:* {data.get('name')}\n"
     text += f"💼 *Профессия:* {data.get('profession')}\n"
     text += f"📍 *Районы:* {', '.join(data.get('districts', []))}\n"
