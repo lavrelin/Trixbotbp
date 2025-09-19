@@ -67,7 +67,7 @@ PIAR_STEPS = [
         'Описание',
         "Используйте эмодзи и абзацы.\n"
         "Чем ярче описание, тем больше внимания потенциальных клиентов оно привлечёт!\n"
-        "📷 *Добавьте медиа* в хорошем качестве,\n"
+        "💻 *Добавьте медиа* в хорошем качестве,\n"
         "💭 Начнем с описания ваших услуг. *Добавьте текст*:"
     )
 ]
@@ -188,13 +188,13 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         keyboard = [
             [InlineKeyboardButton("✅ Дальше", callback_data="piar:skip_photo")],
             [InlineKeyboardButton("↩️ Назад", callback_data="piar:back")],
-            [InlineKeyboardButton("🤷‍♂️ Отмена", callback_data="piar:cancel")]
+            [InlineKeyboardButton("🚩 Отмена", callback_data="piar:cancel")]
         ]
         
         await update.message.reply_text(
             "📷 *Шаг 8 - Фотографии*\n\n"
-            "Вы можете отправить до 3 фотографий или видео для вашего объявления\n"
-            "или нажмите 'Дальше'",
+            "Прикрепите до 3 фотографий или видео для вашего объявления\n"
+            "'Дальше' - следующий шаг без добавление медиа",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
@@ -288,8 +288,8 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     keyboard = [
         [InlineKeyboardButton("☑️ Дальше", callback_data="piar:next_photo")],
-        [InlineKeyboardButton("🕊️ Назад", callback_data="piar:back")],
-        [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
+        [InlineKeyboardButton("🔙 Назад", callback_data="piar:back")],
+        [InlineKeyboardButton("🔚 Отмена", callback_data="piar:cancel")]
     ]
     
     await update.callback_query.edit_message_text(
@@ -306,29 +306,29 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data['piar_data']
     
     # Build preview text
-    text = "🤹🏼 *Предложить услугу - Предпросмотр*\n\n"
-    text += f"🙋🏼‍♂️ *Имя:* {data.get('name')}\n"
-    text += f"👷🏽‍♂️ *Профессия:* {data.get('profession')}\n"
+    text = "💌 *Заявка в Каталог Услуг - Предпросмотр*\n\n"
+    text += f"🙋🏼‍♂️ *Моё имя:* {data.get('name')}\n"
+    text += f"👷🏽‍♂️ *Услуга:* {data.get('profession')}\n"
     text += f"🏘️ *Районы:* {', '.join(data.get('districts', []))}\n"
     
     if data.get('phone'):
-        text += f"🔢 *Телефон:* {data.get('phone')}\n"
+        text += f"🤳 *Телефон:* {data.get('phone')}\n"
     
     # Новая обработка контактов
     contacts = []
     if data.get('instagram'):
-        contacts.append(f"📷 Instagram: @{data.get('instagram')}")
+        contacts.append(f"🟧 Instagram: @{data.get('instagram')}")
     if data.get('telegram'):
-        contacts.append(f"📱 Telegram: {data.get('telegram')}")
+        contacts.append(f"🔷 Telegram: {data.get('telegram')}")
     
     if contacts:
-        text += f"📞 *Контакты:*\n{chr(10).join(contacts)}\n"
+        text += f"📘 *Контакты:*\n{chr(10).join(contacts)}\n"
     
-    text += f"💰 *Цена:* {data.get('price')}\n\n"
+    text += f"💳 *Прайс:* {data.get('price')}\n\n"
     text += f"📝 *Описание:*\n{data.get('description')}\n\n"
     
     if data.get('photos'):
-        text += f"🩵 Медиа файлов: {len(data['photos'])}\n\n"
+        text += f"💽 Добавлено медиа файлов: {len(data['photos'])}\n\n"
     
     text += "#Услуги #КаталогУслуг\n\n"
     text += Config.DEFAULT_SIGNATURE
