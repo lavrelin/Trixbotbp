@@ -294,7 +294,8 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     await update.callback_query.edit_message_text(
         f"💡 *Вы можете добавить еще фото или видео* (доступно для отправки: {remaining}):",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
     )
 
 async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -524,6 +525,7 @@ async def send_piar_to_mod_group_safe(update: Update, context: ContextTypes.DEFA
         description += "..."
     text += f"\n📝 Описание:\n{escape_markdown(description)}"
     
+    # ИСПРАВЛЕННЫЕ КНОПКИ - используем правильный формат callback_data
     keyboard = [
         [InlineKeyboardButton("💬 Написать автору", url=f"tg://user?id={user.id}")],
         [
