@@ -102,21 +102,21 @@ async def show_write_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show write menu with publication types"""
     
     keyboard = [
-        [InlineKeyboardButton("💎 Пост в 🙅‍♂️Будапешт/🕵🏼‍♀️КОП", callback_data="menu:budapest")],
-        [InlineKeyboardButton("❕ Заявка в каталог услуг", callback_data="menu:services")],
+        [InlineKeyboardButton("Пост в 🙅‍♂️Будапешт/🕵🏼‍♀️КОП", callback_data="menu:budapest")],
+        [InlineKeyboardButton("Заявка в 🙅Каталог Услуг", callback_data="menu:services")],
         [InlineKeyboardButton("⚡️ Актуальное", callback_data="menu:actual")],
         [InlineKeyboardButton("🚶‍♀️ Читать", callback_data="menu:read")]
     ]
     
     text = (
-        "🧷 *Выбор и описание разделов для создания публикаций на наши каналы:*\n\n"
+        "🧷 *Выбор и описание разделов*\n\n"
         
-        "*💎 Пост в 🙅‍♂️Будапешт/🕵🏼‍♀️КОП*\n"
+        "*Пост в 🙅‍♂️Будапешт/🕵🏼‍♀️КОП*\n"
         "💁‍♂️ Канал Будапешт: Объявления, новости, жалобы, подслушано.\n"
         "🕵🏽‍♀️ Канал Куплю/Отдам/Продам: главная барахолка Будапешта и 🇭🇺.\n\n"
         
-        " *📂 Заявка в 🙅🏻‍♀️Каталог Услуг*\n"
-        "#Актуальный список специалистов разных направлений, отсортированный по #️⃣ для удобного поиска пользователем❕\n"
+        "*Заявка в 📂Каталог Услуг*\n"
+        "Список специалистов разных направлений, отсортированный по #️⃣ для удобного поиска пользователем❕\n"
         "(Примеры: маникюр, репетитор английского, тренер, врач и т.д.)\n\n"
         
         "*⚡️ Актуальное*\n"
