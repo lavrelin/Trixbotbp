@@ -335,6 +335,73 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send post to moderation"""
+    user_id = update.effective_user.id
+    post_data = context.user_data.get('post_data')
+    
+    if not post_data:
+        await update.callback_query.edit_message_text("❌ Данные поста не найдены")
+        return
+    
+    try:
+        async with db.get_session() as session:
+            # Get user
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                await update.callback_query.edit_message_text(
+                    "❌ Пользователь не найден"
+                )
+                return
+            
+            # Check cooldown
+            cooldown_service = CooldownService()
+            if not cooldown_service.can_post(user_id) and not Config.is_moderator(user_id):
+                remaining = cooldown_service.get_remaining_time(user_id)
+                await update.callback_query.edit_message_text(
+                    f"⏰ Подождите еще {remaining // 60} минут до следующего поста"
+                )
+                return
+            
+            # Create post
+            post = Post(
+                user_id=user_id,
+                category=post_data.get('category'),
+                subcategory=post_data.get('subcategory'),
+                text=post_data.get('text'),
+                hashtags=post_data.get('hashtags', []),
+                anonymous=post_data.get('anonymous', False),
+                media=post_data.get('media', [])
+            )
+            
+            session.add(post)
+            await session.commit()
+            
+            # Send to moderation
+            await send_to_moderation_group(update, context, post, user)
+            
+            # Update cooldown
+            cooldown_service.set_last_post_time(user_id)
+            
+            # Clear user data
+            context.user_data.pop('post_data', None)
+            context.user_data.pop('waiting_for', None)
+            
+            await update.callback_query.edit_message_text(
+                "✅ Пост отправлен на модерацию!\n"
+                "Вы получите уведомление о результате."
+            )
+            
+    except Exception as e:
+        logger.error(f"Error sending to moderation: {e}")
+        await update.callback_query.edit_message_text(
+            "❌ Ошибка при отправке на модерацию"
+        )
+
 async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                                    post: Post, user: User):
     """Send post to moderation group with safe markdown parsing"""
@@ -416,386 +483,105 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
             ],
             [InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")]
         ]
-    
-    try:
-        # Сначала отправляем медиа, если есть
-        media_messages = []
-        if post.media and len(post.media) > 0:
-            for i, media_item in enumerate(post.media):
-                try:
-                    caption = f"📷 Медиа {i+1}/{len(post.media)}"
-                    if is_actual:
-                        caption += " ⚡️"
-                    
-                    if media_item.get('type') == 'photo':
-                        msg = await bot.send_photo(
-                            chat_id=target_group,
-                            photo=media_item['file_id'],
-                            caption=caption
-                        )
-                        media_messages.append(msg.message_id)
-                    elif media_item.get('type') == 'video':
-                        msg = await bot.send_video(
-                            chat_id=target_group,
-                            video=media_item['file_id'],
-                            caption=caption
-                        )
-                        media_messages.append(msg.message_id)
-                    elif media_item.get('type') == 'document':
-                        msg = await bot.send_document(
-                            chat_id=target_group,
-                            document=media_item['file_id'],
-                            caption=caption
-                        )
-                        media_messages.append(msg.message_id)
-                except Exception as e:
-                    logger.error(f"Error sending media {i+1}: {e}")
-        
-        # Затем отправляем текст с кнопками - БЕЗ parse_mode чтобы избежать ошибок
-        try:
-            message = await bot.send_message(
-                chat_id=target_group,
-                text=mod_text,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-                # УБРАН parse_mode='Markdown' - это причина ошибки
-            )
-        except Exception as text_error:
-            logger.error(f"Error sending moderation text: {text_error}")
-            # Fallback - отправляем упрощенное сообщение
-            simple_text = (
-                f"Новая заявка от @{username} (ID: {user.id})\n"
-                f"Категория: {category}\n"
-                f"Текст: {post_text[:200]}..."
-            )
-            message = await bot.send_message(
-                chat_id=target_group,
-                text=simple_text,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        
-        # Сохраняем ID сообщения безопасно
-        try:
-            from sqlalchemy import text
-            async with db.get_session() as session:
-                await session.execute(
-                    text("UPDATE posts SET moderation_message_id = :msg_id WHERE id = :post_id"),
-                    {"msg_id": message.message_id, "post_id": str(post.id)}
-                )
-                await session.commit()
-        except Exception as save_error:
-            logger.error(f"Error saving moderation_message_id: {save_error}")
-        
-        logger.info(f"Post {post.id} sent to moderation with {len(media_messages)} media files")
-            
-    except Exception as e:
-        logger.error(f"Error sending to moderation group: {e}")
-        # Отправляем подробное сообщение об ошибке
-        error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
-        
-        try:
-            await bot.send_message(
-                chat_id=user.id,
-                text=(
-                    f"⚠️ Ошибка отправки в группу модерации\n\n"
-                    f"Детали ошибки: {error_details}\n\n"
-                    f"ID группы: {target_group}\n\n"
-                    f"Обратитесь к администратору."
-                )
-            )
-        except Exception as notify_error:
-            logger.error(f"Could not notify user about moderation error: {notify_error}")
-
-# ДОПОЛНИТЕЛЬНО: Исправленная функция для piar_handler.py
-async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT_TYPE, 
-                                   post: Post, user: User):
-    """Send post to moderation group with safe markdown parsing"""
-    bot = context.bot
-    
-    # Определяем куда отправлять пост
-    is_actual = context.user_data.get('post_data', {}).get('is_actual', False)
-    target_group = Config.MODERATION_GROUP_ID
-    
-    # Функция для экранирования markdown символов
-    def escape_markdown(text):
-        """Экранирует специальные символы markdown"""
-        if not text:
-            return text
-        # Заменяем проблемные символы
-        text = str(text)
-        text = text.replace('*', '\\*')
-        text = text.replace('_', '\\_')
-        text = text.replace('[', '\\[')
-        text = text.replace(']', '\\]')
-        text = text.replace('`', '\\`')
-        return text
-    
-    # =========================
-    # Сообщение для модерации (БЕЗ MARKDOWN для безопасности)
-    # =========================
-    username = user.username or 'no_username'
-    category = post.category or 'Unknown'
-    
-    if is_actual:
-        mod_text = (
-            f"⚡️ АКТУАЛЬНОЕ - Заявочка залетела\n\n"
-            f"💌 от: @{username} (ID: {user.id})\n"
-            f"💥 Примерно в: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-            f"📚 Раздел: {category}\n"
-            f"🎯 Будет опубликовано в ЧАТе и ЗАКРЕПЛЕНО"
-        )
-    else:
-        mod_text = (
-            f"🚨 Заявочка залетела\n\n"
-            f"💌 от: @{username} (ID: {user.id})\n"
-            f"💥 Примерно в: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-            f"📚 Из раздела: {category}"
-        )
-    
-    if post.subcategory:
-        mod_text += f" → {post.subcategory}"
-    
-    if post.anonymous:
-        mod_text += "\n🎭 Анонимно"
-    
-    # Добавляем информацию о медиа
-    if post.media and len(post.media) > 0:
-        mod_text += f"\n📎 Медиа: {len(post.media)} файл(ов)"
-    
-    # Безопасно добавляем текст поста (экранируем специальные символы)
-    post_text = post.text[:500] + "..." if len(post.text) > 500 else post.text
-    mod_text += f"\n\n📝 Текст:\n{escape_markdown(post_text)}"
-    
-    # Добавляем хештеги безопасно
-    if post.hashtags:
-        hashtags_text = " ".join(str(tag) for tag in post.hashtags)
-        mod_text += f"\n\n🏷 Хештеги: {escape_markdown(hashtags_text)}"
-    
-    # Кнопки для актуального отличаются
-    if is_actual:
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ В ЧАТ + ЗАКРЕПИТЬ", callback_data=f"mod:approve_chat:{post.id}"),
-                InlineKeyboardButton("✏️ Редактировать", callback_data=f"mod:edit:{post.id}")
-            ],
-            [InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")]
-        ]
-    else:
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Опубликовать", callback_data=f"mod:approve:{post.id}"),
-                InlineKeyboardButton("✏️ Редактировать", callback_data=f"mod:edit:{post.id}")
-            ],
-            [InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")]
-        ]
-    
-    try:
-        # Сначала отправляем медиа, если есть
-        media_messages = []
-        if post.media and len(post.media) > 0:
-            for i, media_item in enumerate(post.media):
-                try:
-                    caption = f"📷 Медиа {i+1}/{len(post.media)}"
-                    if is_actual:
-                        caption += " ⚡️"
-                    
-                    if media_item.get('type') == 'photo':
-                        msg = await bot.send_photo(
-                            chat_id=target_group,
-                            photo=media_item['file_id'],
-                            caption=caption
-                        )
-                        media_messages.append(msg.message_id)
-                    elif media_item.get('type') == 'video':
-                        msg = await bot.send_video(
-                            chat_id=target_group,
-                            video=media_item['file_id'],
-                            caption=caption
-                        )
-                        media_messages.append(msg.message_id)
-                    elif media_item.get('type') == 'document':
-                        msg = await bot.send_document(
-                            chat_id=target_group,
-                            document=media_item['file_id'],
-                            caption=caption
-                        )
-                        media_messages.append(msg.message_id)
-                except Exception as e:
-                    logger.error(f"Error sending media {i+1}: {e}")
-        
-        # Затем отправляем текст с кнопками - БЕЗ parse_mode чтобы избежать ошибок
-        try:
-            message = await bot.send_message(
-                chat_id=target_group,
-                text=mod_text,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-                # УБРАН parse_mode='Markdown' - это причина ошибки
-            )
-        except Exception as text_error:
-            logger.error(f"Error sending moderation text: {text_error}")
-            # Fallback - отправляем упрощенное сообщение
-            simple_text = (
-                f"Новая заявка от @{username} (ID: {user.id})\n"
-                f"Категория: {category}\n"
-                f"Текст: {post_text[:200]}..."
-            )
-            message = await bot.send_message(
-                chat_id=target_group,
-                text=simple_text,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        
-        # Сохраняем ID сообщения безопасно
-        try:
-            from sqlalchemy import text
-            async with db.get_session() as session:
-                await session.execute(
-                    text("UPDATE posts SET moderation_message_id = :msg_id WHERE id = :post_id"),
-                    {"msg_id": message.message_id, "post_id": str(post.id)}
-                )
-                await session.commit()
-        except Exception as save_error:
-            logger.error(f"Error saving moderation_message_id: {save_error}")
-        
-        logger.info(f"Post {post.id} sent to moderation with {len(media_messages)} media files")
-            
-    except Exception as e:
-        logger.error(f"Error sending to moderation group: {e}")
-        # Отправляем подробное сообщение об ошибке
-        error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
-        
-        try:
-            await bot.send_message(
-                chat_id=user.id,
-                text=(
-                    f"⚠️ Ошибка отправки в группу модерации\n\n"
-                    f"Детали ошибки: {error_details}\n\n"
-                    f"ID группы: {target_group}\n\n"
-                    f"Обратитесь к администратору."
-                )
-            )
-        except Exception as notify_error:
-            logger.error(f"Could not notify user about moderation error: {notify_error}")
-
-# ДОПОЛНИТЕЛЬНО: Исправленная функция для piar_handler.py
-async def send_piar_to_mod_group_safe(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                                     post: Post, user: User, data: dict):
-    """Send piar to moderation group with safe text handling"""
-    bot = context.bot
-    
-    def escape_markdown(text):
-        """Экранирует специальные символы"""
-        if not text:
-            return text
-        text = str(text)
-        text = text.replace('*', '\\*')
-        text = text.replace('_', '\\_')
-        text = text.replace('[', '\\[')
-        text = text.replace(']', '\\]')
-        text = text.replace('`', '\\`')
-        return text
-    
-    # Безопасное сообщение без markdown
-    username = user.username or 'no_username'
-    
-    text = (
-        f"💼 Новая заявка - Услуга\n\n"
-        f"👤 Автор: @{username} (ID: {user.id})\n"
-        f"📅 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        f"Данные:\n"
-        f"👤 Имя: {escape_markdown(data.get('name', ''))}\n"
-        f"💼 Профессия: {escape_markdown(data.get('profession', ''))}\n"
-        f"📍 Районы: {escape_markdown(', '.join(data.get('districts', [])))}\n"
-    )
-    
-    if data.get('phone'):
-        text += f"📞 Телефон: {escape_markdown(data.get('phone'))}\n"
-    
-    # Новая обработка контактов для модерации
-    contacts = []
-    if data.get('instagram'):
-        contacts.append(f"📷 Instagram: @{escape_markdown(data.get('instagram'))}")
-    if data.get('telegram'):
-        contacts.append(f"📱 Telegram: {escape_markdown(data.get('telegram'))}")
-    
-    if contacts:
-        text += f"📞 Контакты:\n{chr(10).join(contacts)}\n"
-    
-    text += f"💰 Цена: {escape_markdown(data.get('price', ''))}\n"
-    
-    # Добавляем информацию о медиа
-    if data.get('media') and len(data['media']) > 0:
-        text += f"📎 Медиа: {len(data['media'])} файл(ов)\n"
-    
-    # Безопасно добавляем описание
-    description = data.get('description', '')[:300]
-    if len(data.get('description', '')) > 300:
-        description += "..."
-    text += f"\n📝 Описание:\n{escape_markdown(description)}"
-    
-    keyboard = [
-        [InlineKeyboardButton("💬 Написать автору", url=f"tg://user?id={user.id}")],
-        [
-            InlineKeyboardButton("✅ Опубликовать", callback_data=f"mod:approve:{post.id}"),
-            InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")
-        ]
-    ]
     
     try:
         # Проверяем доступность группы модерации
         try:
-            await bot.get_chat(Config.MODERATION_GROUP_ID)
-        except Exception as e:
-            logger.error(f"Cannot access moderation group {Config.MODERATION_GROUP_ID}: {e}")
+            await bot.get_chat(target_group)
+        except Exception as chat_error:
+            logger.error(f"Cannot access moderation group {target_group}: {chat_error}")
             await bot.send_message(
                 chat_id=user.id,
                 text="⚠️ Группа модерации недоступна. Обратитесь к администратору."
             )
             return
 
-        # Отправляем медиа с улучшенной обработкой ошибок
-        media_sent = []
-        if data.get('media') and len(data['media']) > 0:
-            for i, media_item in enumerate(data['media']):
+        # Сначала отправляем медиа, если есть
+        media_messages = []
+        if post.media and len(post.media) > 0:
+            for i, media_item in enumerate(post.media):
                 try:
+                    caption = f"📷 Медиа {i+1}/{len(post.media)}"
+                    if is_actual:
+                        caption += " ⚡️"
+                    
                     if media_item.get('type') == 'photo':
                         msg = await bot.send_photo(
-                            chat_id=Config.MODERATION_GROUP_ID,
+                            chat_id=target_group,
                             photo=media_item['file_id'],
-                            caption=f"📷 Медиа {i+1}/{len(data['media'])}"
+                            caption=caption
                         )
-                        media_sent.append(msg.message_id)
+                        media_messages.append(msg.message_id)
                     elif media_item.get('type') == 'video':
                         msg = await bot.send_video(
-                            chat_id=Config.MODERATION_GROUP_ID,
+                            chat_id=target_group,
                             video=media_item['file_id'],
-                            caption=f"🎥 Медиа {i+1}/{len(data['media'])}"
+                            caption=caption
                         )
-                        media_sent.append(msg.message_id)
-                except Exception as media_error:
-                    logger.error(f"Error sending piar media {i+1}: {media_error}")
-                    continue
+                        media_messages.append(msg.message_id)
+                    elif media_item.get('type') == 'document':
+                        msg = await bot.send_document(
+                            chat_id=target_group,
+                            document=media_item['file_id'],
+                            caption=caption
+                        )
+                        media_messages.append(msg.message_id)
+                except Exception as e:
+                    logger.error(f"Error sending media {i+1}: {e}")
         
-        # Отправляем основное сообщение с кнопками БЕЗ parse_mode
+        # Затем отправляем текст с кнопками - БЕЗ parse_mode чтобы избежать ошибок
         try:
             message = await bot.send_message(
-                chat_id=Config.MODERATION_GROUP_ID,
-                text=text,
+                chat_id=target_group,
+                text=mod_text,
                 reply_markup=InlineKeyboardMarkup(keyboard)
-                # УБРАН parse_mode='Markdown'
+                # УБРАН parse_mode='Markdown' - это причина ошибки
             )
-            
-            logger.info(f"Piar sent to moderation successfully. Post ID: {post.id}")
-            
         except Exception as text_error:
-            logger.error(f"Error sending piar text message: {text_error}")
-            raise text_error
+            logger.error(f"Error sending moderation text: {text_error}")
+            # Fallback - отправляем упрощенное сообщение
+            simple_text = (
+                f"Новая заявка от @{username} (ID: {user.id})\n"
+                f"Категория: {category}\n"
+                f"Текст: {post_text[:200]}..."
+            )
+            message = await bot.send_message(
+                chat_id=target_group,
+                text=simple_text,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        
+        # Сохраняем ID сообщения безопасно
+        try:
+            from sqlalchemy import text
+            async with db.get_session() as session:
+                await session.execute(
+                    text("UPDATE posts SET moderation_message_id = :msg_id WHERE id = :post_id"),
+                    {"msg_id": message.message_id, "post_id": str(post.id)}
+                )
+                await session.commit()
+        except Exception as save_error:
+            logger.error(f"Error saving moderation_message_id: {save_error}")
+        
+        logger.info(f"Post {post.id} sent to moderation with {len(media_messages)} media files")
             
     except Exception as e:
-        logger.error(f"Error sending piar to moderation: {e}")
-        await bot.send_message(
-            chat_id=user.id,
-            text="⚠️ Ошибка отправки в группу модерации. Обратитесь к администратору."
-        )
+        logger.error(f"Error sending to moderation group: {e}")
+        # Отправляем подробное сообщение об ошибке
+        error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
+        
+        try:
+            await bot.send_message(
+                chat_id=user.id,
+                text=(
+                    f"⚠️ Ошибка отправки в группу модерации\n\n"
+                    f"Детали ошибки: {error_details}\n\n"
+                    f"ID группы: {target_group}\n\n"
+                    f"Обратитесь к администратору."
+                )
+            )
+        except Exception as notify_error:
+            logger.error(f"Could not notify user about moderation error: {notify_error}")
 
 async def cancel_post_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Ask for cancellation reason"""
