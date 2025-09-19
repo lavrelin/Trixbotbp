@@ -203,8 +203,8 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         keyboard.append([InlineKeyboardButton("🗯️ В главное меню", callback_data="piar:cancel")])
         
         await update.message.reply_text(
-            f"🧏 *Заполнение заявки в Каталог услуг*\n\n"
-            f"♨️ Шаг  {step_num} из 8\n"
+            f"💡 *Заполнение заявки в Каталог услуг*\n\n"
+            f"• Шаг  {step_num} из 8\n"
             f"{step_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
@@ -319,15 +319,15 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.get('photos'):
         text += f"📷 Медиа файлов: {len(data['photos'])}\n\n"
     
-    text += "#Услуги #БизнесБудапешт\n\n"
+    text += "#Услуги #КаталогУслуг\n\n"
     text += Config.DEFAULT_SIGNATURE
     
     keyboard = [
         [
-            InlineKeyboardButton("✅ Отправить на модерацию", callback_data="piar:send"),
-            InlineKeyboardButton("✏️ Изменить", callback_data="piar:edit")
+            InlineKeyboardButton("💚 Отправить на проверку", callback_data="piar:send"),
+            InlineKeyboardButton("💛 Изменить", callback_data="piar:edit")
         ],
-        [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
+        [InlineKeyboardButton("💔 Отмена", callback_data="piar:cancel")]
     ]
     
     # ИСПРАВЛЕНО: Сначала удаляем старое сообщение с кнопками
@@ -638,12 +638,12 @@ async def restart_piar_form(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['waiting_for'] = 'piar_name'
     context.user_data['piar_step'] = 'name'
     
-    keyboard = [[InlineKeyboardButton("😡 Отмена", callback_data="menu:back")]]
+    keyboard = [[InlineKeyboardButton("💎 Главное меню", callback_data="menu:back")]]
     
     await update.callback_query.edit_message_text(
-        "👩‍💻 *Заполнение заявки в 🙅Каталог Услуг*\n\n"
-        "💥 Наши участники — ваши потециальные клиенты.🧏 Всего 8 пунктов для заполнения.🫡 Внимательно указывайте информацию на каждом шаге, после отправки ваша заявка будет скоректирована, а вы уведомлены о результате.\n"
-        "✍️ Введите ваше имя, псевдоним или как к вам можно обращаться:",
+        "*Заполнение заявки в 🙅Каталог Услуг*\n\n"
+        "Наши участники — ваши потециальные клиенты.Внимательно указывайте информацию на каждом шаге, после отправки ваша заявка будет скоректирована, а вы уведомлены о результате.\n"
+        "💬 *Введите ваше имя, псевдоним или как к вам можно обращаться*:",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
