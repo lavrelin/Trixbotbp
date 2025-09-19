@@ -175,8 +175,8 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         context.user_data['waiting_for'] = 'piar_photo'
         
         keyboard = [
-            [InlineKeyboardButton("🏃‍♂️‍➡️ Дальше", callback_data="piar:skip_photo")],
-            [InlineKeyboardButton("🏃‍♂️ Вернуться", callback_data="piar:back")],
+            [InlineKeyboardButton("✅ Дальше", callback_data="piar:skip_photo")],
+            [InlineKeyboardButton("↩️ Назад", callback_data="piar:back")],
             [InlineKeyboardButton("🤷‍♂️ Отмена", callback_data="piar:cancel")]
         ]
         
@@ -256,15 +256,15 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Всегда показываем кнопку "Дальше"
         keyboard.append([
-            InlineKeyboardButton("🏃‍♂️‍➡️ Продолжить", callback_data="piar:next_photo")
+            InlineKeyboardButton("🩵 Продолжить", callback_data="piar:next_photo")
         ])
         
         keyboard.append([InlineKeyboardButton("🔙 Вернуться назад", callback_data="piar:back")])
         keyboard.append([InlineKeyboardButton("👹 Отмена", callback_data="piar:cancel")])
         
         await update.message.reply_text(
-            f"💚 Медиа файлы получено! (Файлов: {len(photos)})\n\n"
-            f"♻️ Можно добавить еще или перейдём к предпросмотру?",
+            f"🎬 Добавлено (Файлов: {len(photos)})\n\n"
+            f"🏞️ Добавим еще медиа❔ Предпросмотр❓",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -276,13 +276,13 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     remaining = Config.MAX_PHOTOS_PIAR - photos_count
     
     keyboard = [
-        [InlineKeyboardButton("👉 Продолжить", callback_data="piar:next_photo")],
-        [InlineKeyboardButton("👈 Вернуться назад", callback_data="piar:back")],
+        [InlineKeyboardButton("☑️ Дальше", callback_data="piar:next_photo")],
+        [InlineKeyboardButton("🕊️ Назад", callback_data="piar:back")],
         [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
     ]
     
     await update.callback_query.edit_message_text(
-        f"🎞️ *Вы можете добавить еще фото или видео* (доступно для отправки: {remaining}):",
+        f"💡 *Вы можете добавить еще фото или видео* (доступно для отправки: {remaining}):",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -317,17 +317,17 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"📝 *Описание:*\n{data.get('description')}\n\n"
     
     if data.get('photos'):
-        text += f"📷 Медиа файлов: {len(data['photos'])}\n\n"
+        text += f"🩵 Медиа файлов: {len(data['photos'])}\n\n"
     
     text += "#Услуги #КаталогУслуг\n\n"
     text += Config.DEFAULT_SIGNATURE
     
     keyboard = [
         [
-            InlineKeyboardButton("💚 Отправить на проверку", callback_data="piar:send"),
-            InlineKeyboardButton("💛 Изменить", callback_data="piar:edit")
+            InlineKeyboardButton("✅ Отправить модератору", callback_data="piar:send"),
+            InlineKeyboardButton("🔏 Редактировать", callback_data="piar:edit")
         ],
-        [InlineKeyboardButton("💔 Отмена", callback_data="piar:cancel")]
+        [InlineKeyboardButton("🚗 Отмена", callback_data="piar:cancel")]
     ]
     
     # ИСПРАВЛЕНО: Сначала удаляем старое сообщение с кнопками
@@ -444,10 +444,10 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             ]
             
             await update.callback_query.edit_message_text(
-                f"✉️ *Ваша заявка успешно отправлена на модерацию!*\n\n"
+                f"🩵 *Ваша заявка успешно отправлена на модерацию!*\n\n"
                 f"После проверки и редакции вам будет отправлен результат в личные сообщения.\n\n"
-                f"🥱 Следующую заявку можно отправить через {next_post_time}\n\n"
-                f"🚨 *Не забудьте подписаться на наши каналы:*",
+                f"💤 Следующую заявку можно отправить через {next_post_time}\n\n"
+                f"‼️ *Не забудьте подписаться на наши каналы:*",
                 reply_markup=InlineKeyboardMarkup(success_keyboard),
                 parse_mode='Markdown'
             )
@@ -455,7 +455,7 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
     except Exception as e:
         logger.error(f"Error in send_piar_to_moderation: {e}")
         await update.callback_query.edit_message_text(
-            "🚨 Ошибка при отправке. Попробуйте еще раз /start При повторной неудаче обратитесь к администратору @trixilvebot 💥"
+            "👹p Ошибка при отправке. Попробуйте еще раз /start При повторной неудаче обратитесь к администратору @trixilvebot 💥"
         )
 
 async def send_piar_to_mod_group_safe(update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -479,7 +479,7 @@ async def send_piar_to_mod_group_safe(update: Update, context: ContextTypes.DEFA
     username = user.username or 'no_username'
     
     text = (
-        f"🧏 Новая заявка - Услуга\n\n"
+        f"⭐️ Новая заявка - Услуга\n\n"
         f"🧍‍♂️ Автор: @{username} (ID: {user.id})\n"
         f"😱 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
         f"Данные:\n"
