@@ -82,7 +82,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
             # Простая валидация телефона - ССЫЛКИ РАЗРЕШЕНЫ
             phone = value.strip()
             if len(phone) < 7:
-                await update.message.reply_text("📵 Абонент не доступен или номер не действителен. Укажите еще раз.")
+                await update.message.reply_text("📞 Наш модератор позвонил на указаный вами номер – 📵 Абонент не доступен или номер не действителен. Укажите свой номер еще раз.")
                 return
             context.user_data['piar_data']['phone'] = phone
         else:
@@ -159,11 +159,11 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         # Добавляем кнопку "Назад" начиная со второго шага
         keyboard = []
         if step_num > 1:
-            keyboard.append([InlineKeyboardButton("👨‍💻 Изменить предыдущий шаг", callback_data="piar:back")])
+            keyboard.append([InlineKeyboardButton("🚶🏼 Шаг назад", callback_data="piar:back")])
         keyboard.append([InlineKeyboardButton("🤷🏻‍♀️ Вернуться в главное меню", callback_data="piar:cancel")])
         
         await update.message.reply_text(
-            f"🧏 *Заполнение данных в каталог услуг*\n\n"
+            f"🧏 *Заполнение заявки в Каталог услуг*\n\n"
             f"💥Выполнено {step_num} из 8\n"
             f"{step_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -242,7 +242,7 @@ async def request_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE)
     ]
     
     await update.callback_query.edit_message_text(
-        f"📷 Отправьте еще фото/видео (осталось: {remaining}):",
+        f"📷 Отправьте еще фото/видео (доступно для отправки: {remaining}):",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -256,12 +256,12 @@ async def show_piar_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Build preview text
     text = "🤹🏼 *Предложить услугу - Предпросмотр*\n\n"
-    text += f"👤 *Имя:* {data.get('name')}\n"
-    text += f"💼 *Профессия:* {data.get('profession')}\n"
-    text += f"📍 *Районы:* {', '.join(data.get('districts', []))}\n"
+    text += f"🙋🏼‍♂️ *Имя:* {data.get('name')}\n"
+    text += f"👷🏽‍♂️ *Профессия:* {data.get('profession')}\n"
+    text += f"🏘️ *Районы:* {', '.join(data.get('districts', []))}\n"
     
     if data.get('phone'):
-        text += f"📞 *Телефон:* {data.get('phone')}\n"
+        text += f"🔢 *Телефон:* {data.get('phone')}\n"
     
     # Новая обработка контактов
     contacts = []
@@ -354,9 +354,9 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             # Create piar post without new fields first
             post_data = {
                 'user_id': user_id,
-                'category': '💼 Услуги',
+                'category': '🙅 Каталог Услуг',
                 'text': data.get('description', ''),
-                'hashtags': ['#Услуги', '#БизнесБудапешт'],
+                'hashtags': ['#Услуги', '#КаталогУслуг'],
                 'is_piar': True,
                 'piar_name': data.get('name'),
                 'piar_profession': data.get('profession'),
@@ -398,16 +398,16 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             
             # Show success message with channel promotion
             success_keyboard = [
-                [InlineKeyboardButton("📺 Наш канал", url="https://t.me/snghu")],
-                [InlineKeyboardButton("📚 Каталог услуг", url="https://t.me/trixvault")],
-                [InlineKeyboardButton("🏠 Главное меню", callback_data="menu:back")]
+                [InlineKeyboardButton("🙅‍♂️ Наш канал Будапешт", url="https://t.me/snghu")],
+                [InlineKeyboardButton("🙅 Каталог услуг", url="https://t.me/trixvault")],
+                [InlineKeyboardButton("🧍‍♂️ Главное меню", callback_data="menu:back")]
             ]
             
             await update.callback_query.edit_message_text(
-                f"✅ *Отправлено на модерацию!*\n\n"
-                f"Ваша заявка на услугу будет рассмотрена модераторами.\n\n"
-                f"⏰ Следующую заявку можно отправить через {next_post_time}\n\n"
-                f"🔔 *Не забудьте подписаться на наши каналы:*",
+                f"✉️ *Ваша заявка успешно отправлена на модерацию!*\n\n"
+                f"После проверки и редакции вам будет отправлен результат в личные сообщения.\n\n"
+                f"🥱 Следующую заявку можно отправить через {next_post_time}\n\n"
+                f"🚨 *Не забудьте подписаться на наши каналы:*",
                 reply_markup=InlineKeyboardMarkup(success_keyboard),
                 parse_mode='Markdown'
             )
@@ -439,13 +439,13 @@ async def send_piar_to_mod_group_safe(update: Update, context: ContextTypes.DEFA
     username = user.username or 'no_username'
     
     text = (
-        f"💼 Новая заявка - Услуга\n\n"
-        f"👤 Автор: @{username} (ID: {user.id})\n"
-        f"📅 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+        f"🧏 Новая заявка - Услуга\n\n"
+        f"🧍‍♂️ Автор: @{username} (ID: {user.id})\n"
+        f"😱 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
         f"Данные:\n"
-        f"👤 Имя: {escape_markdown(data.get('name', ''))}\n"
-        f"💼 Профессия: {escape_markdown(data.get('profession', ''))}\n"
-        f"📍 Районы: {escape_markdown(', '.join(data.get('districts', [])))}\n"
+        f"😀 Имя: {escape_markdown(data.get('name', ''))}\n"
+        f"🥱 Профессия: {escape_markdown(data.get('profession', ''))}\n"
+        f"🏣 Районы: {escape_markdown(', '.join(data.get('districts', [])))}\n"
     )
     
     if data.get('phone'):
@@ -580,7 +580,7 @@ async def go_back_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
                     
                     await update.callback_query.edit_message_text(
-                        f"💼 *Предложить услугу*\n\n"
+                        f"🙅 *Предложить услугу*\n\n"
                         f"Шаг {step_num} из 8\n"
                         f"{step_text}",
                         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -598,12 +598,12 @@ async def restart_piar_form(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['waiting_for'] = 'piar_name'
     context.user_data['piar_step'] = 'name'
     
-    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data="menu:back")]]
+    keyboard = [[InlineKeyboardButton("😡 Отмена", callback_data="menu:back")]]
     
     await update.callback_query.edit_message_text(
-        "💼 *Предложить услугу*\n\n"
-        "Шаг 1 из 8\n"
-        "Введите ваше имя:",
+        "🙅 *Заполните заявку чтобы попасть в наш каталог услуг, клиенты уже ищут вас*\n\n"
+        "💥Внимательно указывайте информацию на каждом шаге, после отправки ваша заявка будет скоректирована, а вы уведомлены о результате. Шаг 1 из 8\n"
+        "✍️ Введите ваше имя, псевдоним или как к вам можно обращаться:",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
