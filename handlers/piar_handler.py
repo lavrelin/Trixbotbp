@@ -586,7 +586,7 @@ async def send_piar_to_mod_group_safe(update: Update, context: ContextTypes.DEFA
                 async with db.get_session() as session:
                     await session.execute(
                         sql_text("UPDATE posts SET moderation_message_id = :msg_id WHERE id = :post_id"),
-                        {"msg_id": message.message_id, "post_id": str(post.id)}
+                        {"msg_id": message.message_id, "post_id": int(post.id)}  # Используем int вместо str
                     )
                     await session.commit()
             except Exception as save_error:
