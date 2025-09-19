@@ -56,6 +56,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🙅‍♂️ Будапешт - канал", url="https://t.me/snghu")],
         [InlineKeyboardButton("🙅‍♀️ Будапешт - чат", url="https://t.me/tgchatxxx")],
         [InlineKeyboardButton("🙅 Будапешт - каталог услуг", url="https://t.me/trixvault")],
+        [InlineKeyboardButton("🕵️‍♂️ Куплю / Отдам / Продам", url="https://t.me/hungarytrade")],
         [InlineKeyboardButton("🚶‍♀️‍➡️ Писать", callback_data="menu:write")]
     ]
     
@@ -65,7 +66,8 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*Наше сообщество:*\n"
         "🙅‍♂️ *Канал* - основные публикации и новости\n"
         "🙅‍♀️ *Чат* - живое общение и обсуждения\n"
-        "🙅 *Каталог* - список мастеров услуг\n\n"
+        "🙅 *Каталог* - список мастеров услуг\n"
+        "🕵️‍♂️ *Барахолка* - купля/продажа/обмен\n\n"
         "*Хотите что-то опубликовать❔*\n"
         "Нажмите 🚶‍♀️‍➡️*Писать* и выберите тип публикации\n\n"
         "⚡️ Быстро • 🎯 Удобно • 🔒 Безопасно"
