@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 # Piar form steps - ИСПРАВЛЕНО: теперь 8 шагов
 PIAR_STEPS = [
-    ('name', 'Имя', 'Введите ваше имя:'),
-    ('profession', 'Профессия', 'Введите вашу профессию:'),
-    ('districts', 'Районы', 'Введите районы (до 3, через запятую):'),
-    ('phone', 'Телефон', 'Введите номер телефона (необязательно, отправьте "-" чтобы пропустить):'),
-    ('instagram', 'Instagram', 'Введите ваш Instagram (необязательно, отправьте "-" чтобы пропустить):'),
-    ('telegram', 'Telegram', 'Введите ваш Telegram (необязательно, отправьте "-" чтобы пропустить):'),
-    ('price', 'Цена', 'Введите цену за услуги:'),
-    ('description', 'Описание', 'Введите описание ваших услуг:')
+    ('name', 'Имя', 'Привет, чтобы попасть в наш каталог услуг заполните маленькую анкету о себе, укажите своё имя, псевдоним тд.:'),
+    ('profession', 'Профессия', 'Какие услуги вы предоставляте:'),
+    ('districts', 'Районы', 'В каких районах вы работаете? (до 3, через запятую):'),
+    ('phone', 'Телефон', 'Добавьте номер телефона если используете в работе с клиентами (или отправьте "-" чтобы перейти дальше):'),
+    ('instagram', 'Instagram', 'Введите ваш Instagram (разрешено ссылку, @, или просто username, или напишите "-" чтобы пропустить):'),
+    ('telegram', 'Telegram', 'Введите ваш Telegram (также разрешается ссылка, @, или username,  "-" - чтобы не указывать):'),
+    ('price', 'Цена', 'Цена за услуги, прайс лист если он есть:'),
+    ('description', 'Описание', 'Сформулируйте описание ваших услуг, добавьте медиафайлы, используйте эмодзи, абзацы. Чем лучше описание - тем больше оно привлекает новых клиентов  :')
 ]
 
 async def handle_piar_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -57,14 +57,14 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
     # Validate and save field - УБРАНА ПРОВЕРКА ССЫЛОК
     if field == 'name':
         if len(value) > 100:
-            await update.message.reply_text("❌ Имя слишком длинное (макс. 100 символов)")
+            await update.message.reply_text("🛣️ Укажите как к вам обращаться не сломав язык (макс. 100 символов)")
             return
         context.user_data['piar_data']['name'] = value
         next_step = 'profession'
         
     elif field == 'profession':
         if len(value) > 100:
-            await update.message.reply_text("❌ Профессия слишком длинная (макс. 100 символов)")
+            await update.message.reply_text("😳 Чем это вы таким занимаетесь? Слишком много текста (макс. 100 символов)")
             return
         context.user_data['piar_data']['profession'] = value
         next_step = 'districts'
@@ -72,7 +72,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
     elif field == 'districts':
         districts = [d.strip() for d in value.split(',')][:3]
         if not districts:
-            await update.message.reply_text("❌ Укажите хотя бы один район")
+            await update.message.reply_text("🏢 Нужно указать хотя бы один район")
             return
         context.user_data['piar_data']['districts'] = districts
         next_step = 'phone'
@@ -82,7 +82,7 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
             # Простая валидация телефона - ССЫЛКИ РАЗРЕШЕНЫ
             phone = value.strip()
             if len(phone) < 7:
-                await update.message.reply_text("❌ Слишком короткий номер телефона")
+                await update.message.reply_text("📵 Абонент не доступен или номер не действителен. Укажите еще раз.")
                 return
             context.user_data['piar_data']['phone'] = phone
         else:
@@ -113,14 +113,14 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         
     elif field == 'price':
         if len(value) > 100:
-            await update.message.reply_text("❌ Цена слишком длинная (макс. 100 символов)")
+            await update.message.reply_text("🙇🏿‍♀️ Неприлично дорого (макс. 100 символов)")
             return
         context.user_data['piar_data']['price'] = value
         next_step = 'description'
         
     elif field == 'description':
         if len(value) > 1000:
-            await update.message.reply_text("❌ Описание слишком длинное (макс. 1000 символов)")
+            await update.message.reply_text("💻 Длинное описание это хорошо, но ненастолько же... (макс. 1000 символов)")
             return
         context.user_data['piar_data']['description'] = value
         next_step = 'photos'
@@ -135,15 +135,15 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         context.user_data['waiting_for'] = 'piar_photo'
         
         keyboard = [
-            [InlineKeyboardButton("⏭ Пропустить", callback_data="piar:skip_photo")],
-            [InlineKeyboardButton("◀️ Назад", callback_data="piar:back")],
-            [InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")]
+            [InlineKeyboardButton("🏃‍♂️‍➡️ Дальше", callback_data="piar:skip_photo")],
+            [InlineKeyboardButton("🏃‍♂️ Вернуться", callback_data="piar:back")],
+            [InlineKeyboardButton("🤷‍♂️ Отмена", callback_data="piar:cancel")]
         ]
         
         await update.message.reply_text(
             "📷 *Шаг 8 - Фотографии*\n\n"
-            "Отправьте до 3 фотографий или видео для вашего объявления\n"
-            "или нажмите 'Пропустить'",
+            "Вы можете отправить до 3 фотографий или видео для вашего объявления\n"
+            "или нажмите 'Дальше'",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
@@ -159,8 +159,8 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         # Добавляем кнопку "Назад" начиная со второго шага
         keyboard = []
         if step_num > 1:
-            keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="piar:back")])
-        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
+            keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="piar:back")])
+        keyboard.append([InlineKeyboardButton("🛑 Отмена", callback_data="piar:cancel")])
         
         await update.message.reply_text(
             f"💼 *Предложить услугу*\n\n"
