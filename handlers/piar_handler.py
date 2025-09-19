@@ -159,12 +159,12 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         # Добавляем кнопку "Назад" начиная со второго шага
         keyboard = []
         if step_num > 1:
-            keyboard.append([InlineKeyboardButton("🚶🏼 Шаг назад", callback_data="piar:back")])
-        keyboard.append([InlineKeyboardButton("🤷🏻‍♀️ Вернуться в главное меню", callback_data="piar:cancel")])
+            keyboard.append([InlineKeyboardButton("↩️ Назад", callback_data="piar:back")])
+        keyboard.append([InlineKeyboardButton("🗯️ В главное меню", callback_data="piar:cancel")])
         
         await update.message.reply_text(
             f"🧏 *Заполнение заявки в Каталог услуг*\n\n"
-            f"💥Выполнено {step_num} из 8\n"
+            f"💥 Выполнено {step_num} из 8\n"
             f"{step_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
