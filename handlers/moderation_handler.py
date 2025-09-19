@@ -20,6 +20,8 @@ async def handle_moderation_callback(update: Update, context: ContextTypes.DEFAU
     action = data[1] if len(data) > 1 else None
     post_id = int(data[2]) if len(data) > 2 and data[2].isdigit() else None
     
+    logger.info(f"Moderation callback: action={action}, post_id={post_id}, user_id={user_id}")
+    
     if action == "approve" and post_id:
         await start_approve_process(update, context, post_id)
     elif action == "approve_chat" and post_id:  # для актуальных постов
@@ -36,15 +38,19 @@ async def handle_moderation_text(update: Update, context: ContextTypes.DEFAULT_T
     user_id = update.effective_user.id
     
     if not Config.is_moderator(user_id):
+        logger.warning(f"Non-moderator {user_id} tried to send moderation text")
         return
     
     # Проверяем, ожидает ли бот ввод от модератора
     waiting_for = context.user_data.get('mod_waiting_for')
+    logger.info(f"Moderator {user_id} sent text, waiting_for: {waiting_for}")
     
     if waiting_for == 'approve_link':
         await process_approve_with_link(update, context)
     elif waiting_for == 'reject_reason':
         await process_reject_with_reason(update, context)
+    else:
+        logger.info(f"Moderator {user_id} sent text but not in moderation process")
 
 async def start_approve_process(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int, chat: bool = False):
     """Start approval process - ask for publication link"""
@@ -65,6 +71,8 @@ async def start_approve_process(update: Update, context: ContextTypes.DEFAULT_TY
             context.user_data['mod_waiting_for'] = 'approve_link'
             context.user_data['mod_is_chat'] = chat
             
+            logger.info(f"Started approve process for post {post_id}, user {post.user_id}")
+            
             # Ask moderator for publication link
             destination = "чате" if chat else "канале"
             await update.callback_query.edit_message_text(
@@ -72,7 +80,8 @@ async def start_approve_process(update: Update, context: ContextTypes.DEFAULT_TY
                 f"Заявка будет одобрена и пользователь получит уведомление.\n\n"
                 f"📎 **Отправьте ссылку на пост в {destination}:**\n"
                 f"(Например: https://t.me/snghu/1234)\n\n"
-                f"⚠️ Отправьте только ссылку одним сообщением",
+                f"⚠️ Отправьте только ссылку одним сообщением\n\n"
+                f"📊 Post ID: {post_id}",
                 parse_mode='Markdown'
             )
             
@@ -98,13 +107,16 @@ async def start_reject_process(update: Update, context: ContextTypes.DEFAULT_TYP
             context.user_data['mod_post_user_id'] = post.user_id
             context.user_data['mod_waiting_for'] = 'reject_reason'
             
+            logger.info(f"Started reject process for post {post_id}, user {post.user_id}")
+            
             # Ask moderator for rejection reason
             await update.callback_query.edit_message_text(
                 f"❌ **ОТКЛОНЕНИЕ ЗАЯВКИ**\n\n"
                 f"Заявка будет отклонена и пользователь получит уведомление.\n\n"
                 f"📝 **Напишите причину отклонения:**\n"
                 f"(Будет отправлена пользователю)\n\n"
-                f"⚠️ Отправьте причину одним сообщением",
+                f"⚠️ Отправьте причину одним сообщением\n\n"
+                f"📊 Post ID: {post_id}",
                 parse_mode='Markdown'
             )
             
@@ -119,6 +131,8 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
         post_id = context.user_data.get('mod_post_id')
         user_id = context.user_data.get('mod_post_user_id')
         is_chat = context.user_data.get('mod_is_chat', False)
+        
+        logger.info(f"Processing approval: post_id={post_id}, user_id={user_id}, link={link}")
         
         if not post_id or not user_id:
             await update.message.reply_text("❌ Ошибка: данные заявки не найдены")
@@ -160,6 +174,8 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
                 parse_mode='Markdown'
             )
             
+            logger.info(f"Successfully approved post {post_id} for user {user_id}")
+            
         except Exception as notify_error:
             logger.error(f"Error notifying user {user_id}: {notify_error}")
             await update.message.reply_text(
@@ -183,6 +199,8 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
         reason = update.message.text.strip()
         post_id = context.user_data.get('mod_post_id')
         user_id = context.user_data.get('mod_post_user_id')
+        
+        logger.info(f"Processing rejection: post_id={post_id}, user_id={user_id}, reason={reason[:50]}...")
         
         if not post_id or not user_id:
             await update.message.reply_text("❌ Ошибка: данные заявки не найдены")
@@ -214,6 +232,8 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
                 f"📊 Post ID: {post_id}",
                 parse_mode='Markdown'
             )
+            
+            logger.info(f"Successfully rejected post {post_id} for user {user_id}")
             
         except Exception as notify_error:
             logger.error(f"Error notifying user {user_id}: {notify_error}")
