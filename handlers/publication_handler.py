@@ -44,13 +44,13 @@ async def handle_publication_callback(update: Update, context: ContextTypes.DEFA
 async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, subcategory: str):
     """Start creating a post with selected subcategory"""
     subcategory_names = {
-        'work': '👷‍♀️ Работа',
-        'rent': '🏠 Аренда',
-        'buy': '🔻 Куплю',
-        'sell': '🔺 Продам',
+        'work': '👷 Работа',
+        'rent': '🏚️ Аренда',
+        'buy': '🕵🏻‍♀️ Куплю',
+        'sell': '🕵🏽 Продам',
         'events': '🎉 События',
-        'free': '📦 Отдам даром',
-        'important': '🌪️ Важно',
+        'free': '🕵🏼 Отдам даром',
+        'important': '‼️ Важно',
         'other': '❔ Другое'
     }
     
@@ -61,11 +61,11 @@ async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE
         'anonymous': False
     }
 
-    keyboard = [[InlineKeyboardButton("🔙 Вернуться", callback_data="menu:announcements")]]
+    keyboard = [[InlineKeyboardButton("⏮️ Вернуться", callback_data="menu:announcements")]]
     
     await update.callback_query.edit_message_text(
-        f"🗯️ Будапешт → 🗣️ Объявления → {subcategory_names.get(subcategory)}\n\n"
-        "📝 Отправьте текст вашего объявления и/или фото/видео:",
+        f"🗯️ Будапешт → ‼️ Объявления → {subcategory_names.get(subcategory)}\n\n"
+        "💥 Напишите текст, добавьте фото, видео контент:",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
@@ -116,15 +116,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             keyboard = [
                 [
-                    InlineKeyboardButton("🖼️ Добавить еще медиа", callback_data="pub:add_media"),
-                    InlineKeyboardButton("👀 Предпросмотр", callback_data="pub:preview")
+                    InlineKeyboardButton("📸 Еще медиа?", callback_data="pub:add_media"),
+                    InlineKeyboardButton("💻 Предпросмотр", callback_data="pub:preview")
                 ],
-                [InlineKeyboardButton("🔙 Назад", callback_data="menu:back")]
+                [InlineKeyboardButton("🔙 Вернуться", callback_data="menu:back")]
             ]
             
             await update.message.reply_text(
-                "🎯 Супер! Текст и медиа сохранены!\n\n"
-                "🎨 Хотите добавить еще медиа или перейти к предпросмотру?",
+                "🧏‍♀️ Отлично, текст и медиа сохранены!\n\n"
+                "🙋‍♀️ Можете добавить еще медиа или перейти к предпросмотру?",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
             
@@ -163,15 +163,15 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         keyboard = [
             [
-                InlineKeyboardButton("🎬 Добавить медиа", callback_data="pub:add_media"),
-                InlineKeyboardButton("👀 Предпросмотр", callback_data="pub:preview")
+                InlineKeyboardButton("📹 Прикрепить медиа контент", callback_data="pub:add_media"),
+                InlineKeyboardButton("💁 Предпросмотр", callback_data="pub:preview")
             ],
-            [InlineKeyboardButton("🔙 Назад", callback_data="menu:back")]
+            [InlineKeyboardButton("🚶‍♀️ Назад", callback_data="menu:back")]
         ]
         
         await update.message.reply_text(
-            "🎉 Отлично! Текст сохранен!\n\n"
-            "🎭 Хотите добавить фото/видео или сразу перейти к предпросмотру?",
+            "🎉 Отличный текст, он сохранен!\n\n"
+            "🤳 Может ещё фото, видео или смотрим что получилось?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
@@ -228,15 +228,15 @@ async def handle_media_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         keyboard = [
             [
-                InlineKeyboardButton(f"➕ Добавить еще", callback_data="pub:add_media"),
-                InlineKeyboardButton("🔍 Предпросмотр", callback_data="pub:preview")
+                InlineKeyboardButton(f"♻️ Добавить еще", callback_data="pub:add_media"),
+                InlineKeyboardButton("❕ Предпросмотр", callback_data="pub:preview")
             ],
-            [InlineKeyboardButton("🔙 Назад", callback_data="menu:back")]
+            [InlineKeyboardButton("🚶 Назад", callback_data="menu:back")]
         ]
         
         await update.message.reply_text(
-            f"🔥 Медиа добавлено! (Всего: {total_media})\n\n"
-            "🎪 Добавить еще или перейти к предпросмотру?",
+            f"🔥 Медиа получено! (Всего: {total_media})\n\n"
+            "👨‍💻 Добавить еще или смотреть результат?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
@@ -249,7 +249,7 @@ async def request_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="pub:preview")]]
     
     await update.callback_query.edit_message_text(
-        "📸 Отправьте фото, видео или документ:",
+        "📹 Поделитесь фото, видео или документом:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -281,9 +281,9 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
             InlineKeyboardButton("🚀 Отправить на модерацию", callback_data="pub:send"),
-            InlineKeyboardButton("✏️ Редактировать", callback_data="pub:edit")
+            InlineKeyboardButton("📝 Изменить", callback_data="pub:edit")
         ],
-        [InlineKeyboardButton("❌ Отмена", callback_data="pub:cancel")]
+        [InlineKeyboardButton("🚗 Отмена", callback_data="pub:cancel")]
     ]
     
     # ИСПРАВЛЕНО: Сначала удаляем старое сообщение с кнопками
@@ -323,7 +323,7 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ИСПРАВЛЕНО: Потом показываем текст с кнопками (последнее сообщение)
     try:
         await update.effective_message.reply_text(
-            f"🎭 *Предпросмотр поста:*\n\n{preview_text}",
+            f"🫣 *Предпросмотр поста:*\n\n{preview_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
@@ -354,7 +354,7 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
             
             if not user:
                 await update.callback_query.edit_message_text(
-                    "❌ Пользователь не найден"
+                    "😔 Пользователь не найден"
                 )
                 return
             
@@ -363,7 +363,7 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if not cooldown_service.can_post(user_id) and not Config.is_moderator(user_id):
                 remaining = cooldown_service.get_remaining_time(user_id)
                 await update.callback_query.edit_message_text(
-                    f"⏰ Подождите еще {remaining // 60} минут до следующего поста"
+                    f"😡 Нужно подождать еще {remaining // 60} минут до следующего поста"
                 )
                 return
             
@@ -392,14 +392,14 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
             context.user_data.pop('waiting_for', None)
             
             await update.callback_query.edit_message_text(
-                "✅ Пост отправлен на модерацию!\n"
-                "Вы получите уведомление о результате."
+                "🩻 Пост отправлен на модерацию!\n"
+                "✉️ Результат будет отправлен вам в ЛС  ."
             )
             
     except Exception as e:
         logger.error(f"Error sending to moderation: {e}")
         await update.callback_query.edit_message_text(
-            "❌ Ошибка при отправке на модерацию"
+            "😖 Ошибка при отправке на модерацию"
         )
 
 async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT_TYPE, 
@@ -455,7 +455,7 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
     
     # Добавляем информацию о медиа
     if post.media and len(post.media) > 0:
-        mod_text += f"\n📎 Медиа: {len(post.media)} файл(ов)"
+        mod_text += f"\n🎞️ Медиа: {len(post.media)} файл(ов)"
     
     # Безопасно добавляем текст поста (экранируем специальные символы)
     post_text = post.text[:500] + "..." if len(post.text) > 500 else post.text
@@ -464,7 +464,7 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
     # Добавляем хештеги безопасно
     if post.hashtags:
         hashtags_text = " ".join(str(tag) for tag in post.hashtags)
-        mod_text += f"\n\n🏷 Хештеги: {escape_markdown(hashtags_text)}"
+        mod_text += f"\n\n#️⃣ Хештеги: {escape_markdown(hashtags_text)}"
     
     # Кнопки для актуального отличаются
     if is_actual:
@@ -587,8 +587,8 @@ async def cancel_post_with_reason(update: Update, context: ContextTypes.DEFAULT_
     """Ask for cancellation reason"""
     keyboard = [
         [InlineKeyboardButton("🤷 Передумал", callback_data="pub:cancel_confirm")],
-        [InlineKeyboardButton("✏️ Ошибка в тексте", callback_data="pub:cancel_confirm")],
-        [InlineKeyboardButton("🔙 Назад", callback_data="pub:preview")]
+        [InlineKeyboardButton("👩‍💻 Ошибка в тексте", callback_data="pub:cancel_confirm")],
+        [InlineKeyboardButton("🏃 Вернуться назад", callback_data="pub:preview")]
     ]
     
     await update.callback_query.edit_message_text(
@@ -611,7 +611,7 @@ async def edit_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="pub:preview")]]
     
     await update.callback_query.edit_message_text(
-        "✏️ Отправьте новый текст для поста:",
+        "🦜 Отправьте новый текст публикации:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
