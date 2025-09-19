@@ -1,3 +1,14 @@
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, InputMediaVideo
+from telegram.ext import ContextTypes
+from config import Config
+from services.db import db
+from models import User, Post
+from sqlalchemy import select
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Piar form steps - 8 шагов
 PIAR_STEPS = [
     (
         'name',
@@ -31,32 +42,32 @@ PIAR_STEPS = [
         "💡 Заполнение заявки в Каталог услуг\n\n"
         "• Шаг 4 из 8\n\n"
         "💬 Укажите номер телефона (если используете его в работе с клиентами)\n"
-        "🏃🏻‍♀️‍➡️ Отправьте «-» для перехода к следующему шагу"
+        "↪️ Отправьте «-» для перехода к следующему шагу"
     ),
-  (
-    'instagram',
-    'Instagram',
-    "💡 Заполнение заявки в Каталог услуг\n\n"
-    "• Шаг 5 из 8\n\n"
-    "💬 Введите ваш 🟧Instagram.\n\n"
-    "Можно указать в формате:\n"
-    "🔗 ссылку\n"
-    "🌀 username\n"
-    "или просто username\n\n"
-    "🏃🏼‍♂️‍➡️ Отправьте «-» чтобы пропустить"
-),
-(
-    'telegram',
-    'Telegram',
-    "💡 Заполнение заявки в Каталог услуг\n\n"
-    "• Шаг 6 из 8\n\n"
-    "💬 Введите ваш 🔷Telegram.\n\n"
-    "Можно указать в формате:\n"
-    "🔗 ссылку\n"
-    "🌀 username\n"
-    "или просто username\n\n"
-    "🏃🏻‍➡️ Отправьте «-» чтобы продолжить"
-),
+    (
+        'instagram',
+        'Instagram',
+        "💡 Заполнение заявки в Каталог услуг\n\n"
+        "• Шаг 5 из 8\n\n"
+        "💬 Введите ваш 🟧Instagram.\n\n"
+        "Можно указать в формате:\n"
+        "🔗 ссылку\n"
+        "🌀 username\n"
+        "или просто username\n\n"
+        "↪️ Отправьте «-» чтобы пропустить"
+    ),
+    (
+        'telegram',
+        'Telegram',
+        "💡 Заполнение заявки в Каталог услуг\n\n"
+        "• Шаг 6 из 8\n\n"
+        "💬 Введите ваш 🔷Telegram.\n\n"
+        "Можно указать в формате:\n"
+        "🔗 ссылку\n"
+        "🌀 username\n"
+        "или просто username\n\n"
+        "↪️ Отправьте «-» чтобы продолжить"
+    ),
     (
         'price',
         'Цена',
