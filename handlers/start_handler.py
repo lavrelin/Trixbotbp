@@ -37,7 +37,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     gender=Gender.UNKNOWN,
                     referral_code=generate_referral_code(),
                     created_at=datetime.utcnow()
-                    # УБРАН updated_at - его нет в БД модели
                 )
                 session.add(new_user)
                 await session.commit()
@@ -53,7 +52,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show new main menu design"""
     
-    # Новые кнопки для главного меню
     keyboard = [
         [InlineKeyboardButton("🙅‍♂️ Будапешт - канал", url="https://t.me/snghu")],
         [InlineKeyboardButton("🙅‍♀️ Будапешт - чат", url="https://t.me/tgchatxxx")],
@@ -61,19 +59,15 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🚶‍♀️‍➡️ Писать", callback_data="menu:write")]
     ]
     
-    # Новый текст главного меню с описанием
     text = (
         "🤖 *Добро пожаловать в TrixBot!*\n\n"
         "🎯 *Ваш помощник для публикаций в Будапеште*\n\n"
-        
         "🧏🏻‍♀️ *Наши каналы и группы:*\n"
         "🙅‍♂️ *Канал* - основные публикации и новости\n"
         "🙅‍♀️ *Чат* - живое общение и обсуждения\n"
         "🙅 *Каталог* - поиск мастеров услуг\n\n"
-        
         "✍️ *Хотите что-то опубликовать?*\n"
         "Нажмите 🚶‍♀️‍➡️ *Писать* и выберите тип публикации\n\n"
-        
         "⚡️ Быстро • 🎯 Удобно • 🔒 Безопасно"
     )
     
@@ -92,7 +86,6 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logger.error(f"Error showing main menu: {e}")
-        # Fallback без форматирования
         try:
             await update.effective_message.reply_text(
                 "TrixBot - Ваш помощник для публикаций в Будапеште\n\n"
@@ -105,7 +98,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Бот запущен! Используйте /start для перезапуска."
             )
 
-аasync def show_write_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_write_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show write menu with publication types"""
     
     keyboard = [
