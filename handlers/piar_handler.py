@@ -159,12 +159,12 @@ async def handle_piar_text(update: Update, context: ContextTypes.DEFAULT_TYPE,
         # Добавляем кнопку "Назад" начиная со второго шага
         keyboard = []
         if step_num > 1:
-            keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="piar:back")])
-        keyboard.append([InlineKeyboardButton("🛑 Отмена", callback_data="piar:cancel")])
+            keyboard.append([InlineKeyboardButton("👨‍💻 Изменить предыдущий шаг", callback_data="piar:back")])
+        keyboard.append([InlineKeyboardButton("🤷🏻‍♀️ Вернуться в главное меню", callback_data="piar:cancel")])
         
         await update.message.reply_text(
-            f"💼 *Предложить услугу*\n\n"
-            f"Шаг {step_num} из 8\n"
+            f"🧏 *Заполнение данных в каталог услуг*\n\n"
+            f"💥Выполнено {step_num} из 8\n"
             f"{step_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
@@ -189,7 +189,7 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if len(photos) >= Config.MAX_PHOTOS_PIAR:
         await update.message.reply_text(
-            f"❌ Максимум {Config.MAX_PHOTOS_PIAR} фотографии"
+            f"💿 Не вмещается, максимум {Config.MAX_PHOTOS_PIAR} фотографии"
         )
         return
     
@@ -210,21 +210,21 @@ async def handle_piar_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if remaining > 0:
             keyboard.append([
-                InlineKeyboardButton(f"📷 Добавить еще ({remaining})", 
+                InlineKeyboardButton(f"📸 Добавить еще ({remaining})", 
                                    callback_data="piar:add_photo")
             ])
         
         # Всегда показываем кнопку "Дальше"
         keyboard.append([
-            InlineKeyboardButton("▶️ Дальше", callback_data="piar:next_photo")
+            InlineKeyboardButton("🏃‍♂️‍➡️ Продолжить", callback_data="piar:next_photo")
         ])
         
-        keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="piar:back")])
-        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="piar:cancel")])
+        keyboard.append([InlineKeyboardButton("🔙 Вернуться назад", callback_data="piar:back")])
+        keyboard.append([InlineKeyboardButton("👹 Отмена", callback_data="piar:cancel")])
         
         await update.message.reply_text(
-            f"✅ Медиа добавлено! (Всего: {len(photos)})\n\n"
-            f"Хотите добавить еще или перейти к предпросмотру?",
+            f"📶 Медиа файлы получено! (Всего: {len(photos)})\n\n"
+            f"➡️ Можно добавить еще или перейдём к предпросмотру?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
