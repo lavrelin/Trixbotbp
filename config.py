@@ -22,7 +22,7 @@ class Config:
     
     # Admins and moderators
     ADMIN_IDS: Set[int] = set(map(int, filter(None, os.getenv("ADMIN_IDS", "").split(","))))
-    MODERATOR_IDS: Set[int] = set(map(int, filter(None, os.getenv("MODERATOR_IDS", "").split(","))))
+    MODERATOR_IDS: Set[int] = set(map(int, filter(None, os.getenv("MODERATOR_IDS", "7811593067").split(","))))
     
     # Cooldown
     COOLDOWN_SECONDS = int(os.getenv("COOLDOWN_SECONDS", "5666"))
