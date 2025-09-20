@@ -14,8 +14,6 @@ async def handle_moderation_callback(update: Update, context: ContextTypes.DEFAU
     
     logger.info(f"Moderation callback from user {user_id}")
     logger.info(f"Is moderator check: {Config.is_moderator(user_id)}")
-    logger.info(f"Moderator IDs: {Config.MODERATOR_IDS}")
-    logger.info(f"Admin IDs: {Config.ADMIN_IDS}")
     
     if not Config.is_moderator(user_id):
         await query.answer("❌ Доступ запрещен", show_alert=True)
@@ -27,7 +25,6 @@ async def handle_moderation_callback(update: Update, context: ContextTypes.DEFAU
     post_id = int(data[2]) if len(data) > 2 and data[2].isdigit() else None
     
     logger.info(f"Moderation callback: action={action}, post_id={post_id}, user_id={user_id}")
-    logger.info(f"Full callback data: {query.data}")
     
     if action == "approve" and post_id:
         await start_approve_process(update, context, post_id)
@@ -54,7 +51,6 @@ async def handle_moderation_text(update: Update, context: ContextTypes.DEFAULT_T
     # Проверяем, ожидает ли бот ввод от модератора
     waiting_for = context.user_data.get('mod_waiting_for')
     logger.info(f"Moderator {user_id} sent text, waiting_for: {waiting_for}")
-    logger.info(f"Context data: {context.user_data}")
     
     if waiting_for == 'approve_link':
         await process_approve_with_link(update, context)
@@ -62,26 +58,18 @@ async def handle_moderation_text(update: Update, context: ContextTypes.DEFAULT_T
         await process_reject_with_reason(update, context)
     else:
         logger.info(f"Moderator {user_id} sent text but not in moderation process")
-        # Показываем модератору что мы получили сообщение
-        await update.message.reply_text(
-            f"Получено сообщение: {update.message.text[:50]}...\n"
-            f"Статус ожидания: {waiting_for}\n"
-            f"Контекст: {bool(context.user_data)}"
-        )
 
 async def start_approve_process(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int, chat: bool = False):
     """Start approval process - ask for publication link"""
     try:
         logger.info(f"Starting approve process for post {post_id}")
         
-        # Попробуем использовать простой запрос без сложной логики DB
         try:
             from services.db import db
             from models import Post
             from sqlalchemy import select
             
             async with db.get_session() as session:
-                # Используем простой select
                 result = await session.execute(
                     select(Post).where(Post.id == post_id)
                 )
@@ -128,14 +116,12 @@ async def start_reject_process(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         logger.info(f"Starting reject process for post {post_id}")
         
-        # Попробуем использовать простой запрос без сложной логики DB
         try:
             from services.db import db
             from models import Post
             from sqlalchemy import select
             
             async with db.get_session() as session:
-                # Используем простой select
                 result = await session.execute(
                     select(Post).where(Post.id == post_id)
                 )
@@ -189,21 +175,21 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
             await update.message.reply_text("❌ Ошибка: данные заявки не найдены")
             return
         
-        # Update post status in DB
+        # Update post status in DB - ИСПРАВЛЕНО: используем правильные значения enum
         try:
             from services.db import db
-            from models import Post
+            from models import Post, PostStatus
             from sqlalchemy import select
             
             async with db.get_session() as session:
-                # Обновляем статус
                 result = await session.execute(
                     select(Post).where(Post.id == post_id)
                 )
                 post = result.scalar_one_or_none()
                 
                 if post:
-                    post.status = 'approved'
+                    # ИСПРАВЛЕНО: используем enum PostStatus вместо строки
+                    post.status = PostStatus.APPROVED  # Вместо 'approved'
                     await session.commit()
                     logger.info(f"Updated post {post_id} status to approved")
                 else:
@@ -275,21 +261,21 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
             await update.message.reply_text("❌ Ошибка: данные заявки не найдены")
             return
         
-        # Update post status in DB
+        # Update post status in DB - ИСПРАВЛЕНО: используем правильные значения enum
         try:
             from services.db import db
-            from models import Post
+            from models import Post, PostStatus
             from sqlalchemy import select
             
             async with db.get_session() as session:
-                # Обновляем статус
                 result = await session.execute(
                     select(Post).where(Post.id == post_id)
                 )
                 post = result.scalar_one_or_none()
                 
                 if post:
-                    post.status = 'rejected'
+                    # ИСПРАВЛЕНО: используем enum PostStatus вместо строки
+                    post.status = PostStatus.REJECTED  # Вместо 'rejected'
                     await session.commit()
                     logger.info(f"Updated post {post_id} status to rejected")
                 else:
