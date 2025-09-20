@@ -47,20 +47,20 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def show_budapest_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show Budapest category menu"""
     keyboard = [
-        [InlineKeyboardButton("🎙️ Объявления", callback_data="menu:announcements")],
-        [InlineKeyboardButton("🗞️ Новости", callback_data="menu:news")],
-        [InlineKeyboardButton("😈 Подслушано (анонимно)", callback_data="menu:overheard")],
-        [InlineKeyboardButton("🌚 Жалобы (анонимно)", callback_data="menu:complaints")],
-        [InlineKeyboardButton("🔙 Назад", callback_data="menu:write")]
+        [InlineKeyboardButton("📢 Объявления", callback_data="menu:announcements")],
+        [InlineKeyboardButton("🧞‍♂️ Новости", callback_data="menu:news")],
+        [InlineKeyboardButton("🧞 Подслушано (анонимно)", callback_data="menu:overheard")],
+        [InlineKeyboardButton("🧞‍♀️ Жалобы (анонимно)", callback_data="menu:complaints")],
+        [InlineKeyboardButton("🙅‍♂️ Вернуться", callback_data="menu:write")]
     ]
     
     text = (
         "🙅‍♂️ *Пост в Будапешт*\n\n"
         "Выберите тип публикации:\n\n"
-        "🎙️ *Объявления* - товары, услуги, поиски и предложения. \n"
-        "🗞️ *Новости* - новая актуальная информация\n"
-        "😈 *Подслушано* - анонимные истории, сплетни, ситуации\n"
-        "🌚 *Жалобы* - анонимные недовольства и проблемы\n"
+        "📢 *Объявления* - товары, услуги, поиски и предложения. \n"
+        "🧞‍♂️ *Новости* - новая актуальная информация\n"
+        "🧞 *Подслушано* - анонимные истории, сплетни, ситуации\n"
+        "🧞‍♀️ *Жалобы* - анонимные недовольства и проблемы\n"
     )
     
     try:
@@ -81,20 +81,20 @@ async def show_announcements_menu(update: Update, context: ContextTypes.DEFAULT_
     """Show announcements subcategories"""
     keyboard = [
         [
-            InlineKeyboardButton("👷‍♀️ Работа", callback_data="pub:cat:work"),
+            InlineKeyboardButton("🕵🏻‍♀️ Куплю", callback_data="pub:cat:buy"),
+            InlineKeyboardButton("👷‍♀️ Работа", callback_data="pub:cat:work")
+        ],
+        [
+            InlineKeyboardButton("🕵🏼 Отдам даром", callback_data="pub:cat:free"),
             InlineKeyboardButton("🏢 Аренда", callback_data="pub:cat:rent")
         ],
         [
-            InlineKeyboardButton("🕵🏻‍♀️ Куплю", callback_data="pub:cat:buy"),
-            InlineKeyboardButton("🕵🏻‍♂️ Продам", callback_data="pub:cat:sell")
+            InlineKeyboardButton("🕵🏻‍♂️ Продам", callback_data="pub:cat:sell"),
+            InlineKeyboardButton("🪙 Криптовалюта", callback_data="pub:cat:crypto")
         ],
         [
-            InlineKeyboardButton("🎉 События", callback_data="pub:cat:events"),
-            InlineKeyboardButton("🕵🏼 Отдам даром", callback_data="pub:cat:free")
-        ],
-        [
-            InlineKeyboardButton("🪙 Криптовалюта", callback_data="pub:cat:important"),
-            InlineKeyboardButton("❔ Другое", callback_data="pub:cat:other")
+            InlineKeyboardButton("❔ Другое", callback_data="pub:cat:other"),
+            InlineKeyboardButton("🎉 События", callback_data="pub:cat:events")
         ],
         [InlineKeyboardButton("↩️ Выйти", callback_data="menu:budapest")]
     ]
@@ -109,27 +109,6 @@ async def show_announcements_menu(update: Update, context: ContextTypes.DEFAULT_
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
-
-async def show_catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show catalog link"""
-    keyboard = [
-        [InlineKeyboardButton("📂 Открыть каталог", url="https://t.me/trixvault")],
-        [InlineKeyboardButton("🔙 Назад", callback_data="menu:write")]
-    ]
-    
-    text = (
-        "🙅 *Каталог Услуг Будапешта от бота Трикса*\n\n"
-        "Полный каталог услуг, товаров и предложений\n"
-        "от участников сообщества.\n\n"
-        "⤵️ Нажмите кнопку ниже, чтобы перейти в каталог:"
-    )
-    
-    await update.callback_query. edit_message_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
-    )
-
 async def start_piar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start Services form (renamed from Piar)"""
     context.user_data['piar_data'] = {}
