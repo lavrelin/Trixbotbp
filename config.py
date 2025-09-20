@@ -21,7 +21,7 @@ class Config:
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:pass@localhost/trixbot")
     
     # Admins and moderators
-    ADMIN_IDS: Set[int] = set(map(int, filter(None, os.getenv("ADMIN_IDS", "").split(","))))
+    ADMIN_IDS: Set[int] = set(map(int, filter(None, os.getenv("ADMIN_IDS", "7811593067").split(","))))
     MODERATOR_IDS: Set[int] = set(map(int, filter(None, os.getenv("MODERATOR_IDS", "7811593067").split(","))))
     
     # Cooldown
