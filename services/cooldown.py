@@ -107,4 +107,50 @@ class CooldownService:
                 if not user:
                     return {'has_cooldown': False}
                 
-                if (hasattr(user, 'cooldown_expires
+                if (hasattr(user, 'cooldown_expires_at') and user.cooldown_expires_at and 
+                    user.cooldown_expires_at > datetime.utcnow()):
+                    remaining = int((user.cooldown_expires_at - datetime.utcnow()).total_seconds())
+                    return {
+                        'has_cooldown': True,
+                        'expires_at': user.cooldown_expires_at,
+                        'remaining_seconds': remaining,
+                        'remaining_minutes': remaining // 60
+                    }
+                
+                return {'has_cooldown': False}
+                
+        except Exception as e:
+            logger.error(f"Error getting cooldown info for user {user_id}: {e}")
+            return {'has_cooldown': False}
+    
+    def simple_can_post(self, user_id: int) -> bool:
+        """Простая синхронная проверка для совместимости"""
+        # Модераторы всегда могут постить
+        if Config.is_moderator(user_id):
+            return True
+        
+        # Проверяем кэш
+        if user_id in self._cache:
+            last_post_time = self._cache[user_id]
+            if datetime.utcnow() - last_post_time < timedelta(seconds=Config.COOLDOWN_SECONDS):
+                return False
+        
+        return True
+    
+    def set_last_post_time(self, user_id: int):
+        """Устанавливает время последнего поста в кэш"""
+        if not Config.is_moderator(user_id):
+            self._cache[user_id] = datetime.utcnow()
+    
+    def get_remaining_time(self, user_id: int) -> int:
+        """Получает оставшееся время кулдауна в секундах"""
+        if Config.is_moderator(user_id):
+            return 0
+        
+        if user_id in self._cache:
+            last_post_time = self._cache[user_id]
+            elapsed = datetime.utcnow() - last_post_time
+            remaining = Config.COOLDOWN_SECONDS - int(elapsed.total_seconds())
+            return max(0, remaining)
+        
+        return 0
