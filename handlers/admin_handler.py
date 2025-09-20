@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-# ============= ОСНОВНЫЕ КОМАНДЫ =============
+# ============ ОСНОВНЫЕ КОМАНДЫ =============
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /admin command"""
