@@ -46,7 +46,9 @@ try:
         admin_command, 
         stats_command,
         broadcast_command,
-        handle_admin_callback
+        handle_admin_callback,
+        say_command,          # НОВОЕ
+        confirm_broadcast_command  # НОВОЕ
     )
     ADMIN_HANDLERS_AVAILABLE = True
     logger.info("Admin handlers loaded")
@@ -110,43 +112,27 @@ class TrixBot:
             raise
     
     def _add_handlers(self):
-        """Add all command and callback handlers"""
-        if not CORE_HANDLERS_AVAILABLE:
-            logger.error("Core handlers not available - bot cannot function properly")
-            return
-            
-        app = self.application
+         """Add all command and callback handlers"""
+    if not CORE_HANDLERS_AVAILABLE:
+        logger.error("Core handlers not available - bot cannot function properly")
+        return
         
-        try:
-            # Command handlers
-            app.add_handler(CommandHandler("start", start_command))
-            app.add_handler(CommandHandler("help", help_command))
-            logger.info("Basic command handlers added")
-            
-            # Admin handlers (если доступны)
-            if ADMIN_HANDLERS_AVAILABLE:
-                app.add_handler(CommandHandler("admin", admin_command))
-                app.add_handler(CommandHandler("stats", stats_command))
-                app.add_handler(CommandHandler("broadcast", broadcast_command))
-                logger.info("Admin command handlers added")
-            
-            # Callback query handlers
-            app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^menu:"))
-            app.add_handler(CallbackQueryHandler(handle_publication_callback, pattern="^pub:"))
-            app.add_handler(CallbackQueryHandler(handle_piar_callback, pattern="^piar:"))
-            logger.info("Core callback handlers added")
-            
-            if PROFILE_HANDLER_AVAILABLE:
-                app.add_handler(CallbackQueryHandler(handle_profile_callback, pattern="^profile:"))
-                logger.info("Profile callback handler added")
-            
-            if MODERATION_HANDLER_AVAILABLE:
-                app.add_handler(CallbackQueryHandler(handle_moderation_callback, pattern="^mod:"))
-                logger.info("Moderation callback handler added")
-            
-            if ADMIN_HANDLERS_AVAILABLE:
-                app.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^admin:"))
-                logger.info("Admin callback handler added")
+    app = self.application
+    
+    try:
+        # Command handlers
+        app.add_handler(CommandHandler("start", start_command))
+        app.add_handler(CommandHandler("help", help_command))
+        logger.info("Basic command handlers added")
+        
+        # Admin handlers (если доступны)
+        if ADMIN_HANDLERS_AVAILABLE:
+            app.add_handler(CommandHandler("admin", admin_command))
+            app.add_handler(CommandHandler("stats", stats_command))
+            app.add_handler(CommandHandler("broadcast", broadcast_command))
+            app.add_handler(CommandHandler("say", say_command))  # НОВОЕ
+            app.add_handler(CommandHandler("confirm_broadcast", confirm_broadcast_command))  # НОВОЕ
+            logger.info("Admin command handlers added")
             
             # Message handlers - только фото и видео
             app.add_handler(MessageHandler(
