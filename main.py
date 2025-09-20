@@ -183,6 +183,14 @@ class TrixBot:
                     await handle_moderation_text(update, context)
                     return
             
+            # Проверяем, если бот ожидает медиа, а пользователь отправил текст
+            if waiting_for == 'piar_photo':
+                await update.message.reply_text("📷 Пожалуйста, отправьте фото или видео, либо нажмите кнопку 'Дальше' для продолжения")
+                return
+            elif waiting_for == 'post_photo':
+                await update.message.reply_text("📷 Пожалуйста, отправьте фото или видео для вашей публикации")
+                return
+            
             if not waiting_for:
                 if DB_AVAILABLE:
                     try:
@@ -240,6 +248,14 @@ class TrixBot:
             
             logger.debug(f"Media message, waiting_for: {waiting_for}")
             
+            # Проверяем, если бот ожидает текст, а пользователь отправил медиа
+            if waiting_for and waiting_for.startswith('piar_') and waiting_for != 'piar_photo':
+                await update.message.reply_text("💭 Пожалуйста, добавьте текст как указано в инструкции")
+                return
+            elif waiting_for == 'post_text':
+                await update.message.reply_text("📝 Пожалуйста, сначала добавьте текст для вашей публикации")
+                return
+            
             if 'post_data' in context.user_data:
                 await handle_media_input(update, context)
             elif waiting_for == 'piar_photo':
@@ -247,11 +263,11 @@ class TrixBot:
             elif update.message.caption and waiting_for:
                 await self._handle_text_message(update, context)
             else:
-                from handlers.start_handler import show_main_menu
-                await show_main_menu(update, context)
+                await update.message.reply_text("📷 Для загрузки медиа используйте соответствующий раздел в меню")
                 
         except Exception as e:
             logger.error(f"Error handling media message: {e}")
+            await update.message.reply_text("Произошла ошибка при обработке медиа")
     
     async def run(self):
         """Run the bot"""
