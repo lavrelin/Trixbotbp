@@ -43,12 +43,10 @@ except ImportError as e:
 # Дополнительные импорты с обработкой ошибок
 try:
     from handlers.admin_handler import (
-        admin_command, 
-        stats_command,
-        broadcast_command,
-        handle_admin_callback,
-        say_command,          # НОВОЕ
-        confirm_broadcast_command  # НОВОЕ
+        admin_command, stats_command, say_command,
+        id_command, whois_command, translate_command, weather_command,
+        join_command, participants_command, report_command,
+        ban_command, unban_command, admcom_command, handle_admin_callback
     )
     ADMIN_HANDLERS_AVAILABLE = True
     logger.info("Admin handlers loaded")
@@ -69,6 +67,24 @@ try:
     logger.info("Moderation handler loaded")
 except ImportError:
     MODERATION_HANDLER_AVAILABLE = False
+
+try:
+    from handlers.games_handler import (
+        # Игра "Угадай слово"
+        wordadd_command, wordedit_command, wordclear_command, 
+        wordon_command, wordoff_command, anstimeset_command,
+        game_say_command, wordinfo_command,
+        # Розыгрыш
+        roll_participant_command, mynumber_command, roll_draw_command,
+        rollreset_command, rollstatus_command,
+        # Информационные
+        gamesinfo_command, admgamesinfo_command
+    )
+    GAMES_HANDLERS_AVAILABLE = True
+    logger.info("Games handlers loaded")
+except ImportError as e:
+    logger.warning(f"Games handlers not available: {e}")
+    GAMES_HANDLERS_AVAILABLE = False
 
 try:
     from services.db import db
@@ -120,19 +136,91 @@ class TrixBot:
         app = self.application
         
         try:
-            # Command handlers
+            # Базовые команды
             app.add_handler(CommandHandler("start", start_command))
             app.add_handler(CommandHandler("help", help_command))
             logger.info("Basic command handlers added")
             
-            # Admin handlers (если доступны)
+            # Админские и модераторские команды
             if ADMIN_HANDLERS_AVAILABLE:
                 app.add_handler(CommandHandler("admin", admin_command))
                 app.add_handler(CommandHandler("stats", stats_command))
-                app.add_handler(CommandHandler("broadcast", broadcast_command))
-                app.add_handler(CommandHandler("say", say_command))  # НОВОЕ
-                app.add_handler(CommandHandler("confirm_broadcast", confirm_broadcast_command))  # НОВОЕ
+                app.add_handler(CommandHandler("say", say_command))
+                app.add_handler(CommandHandler("id", id_command))
+                app.add_handler(CommandHandler("whois", whois_command))
+                app.add_handler(CommandHandler("translate", translate_command))
+                app.add_handler(CommandHandler("weather", weather_command))
+                app.add_handler(CommandHandler("join", join_command))
+                app.add_handler(CommandHandler("participants", participants_command))
+                app.add_handler(CommandHandler("report", report_command))
+                app.add_handler(CommandHandler("ban", ban_command))
+                app.add_handler(CommandHandler("unban", unban_command))
+                app.add_handler(CommandHandler("admcom", admcom_command))
                 logger.info("Admin command handlers added")
+            
+            # Игровые команды
+            if GAMES_HANDLERS_AVAILABLE:
+                # Игра "Угадай слово" - версия play3xia
+                app.add_handler(CommandHandler("play3xiawordadd", wordadd_command))
+                app.add_handler(CommandHandler("play3xiawordedit", wordedit_command))
+                app.add_handler(CommandHandler("play3xiawordclear", wordclear_command))
+                app.add_handler(CommandHandler("play3xiawordon", wordon_command))
+                app.add_handler(CommandHandler("play3xiawordoff", wordoff_command))
+                app.add_handler(CommandHandler("play3xiaanstimeset", anstimeset_command))
+                app.add_handler(CommandHandler("play3xiasay", game_say_command))
+                app.add_handler(CommandHandler("play3xiawordinfo", wordinfo_command))
+                app.add_handler(CommandHandler("play3xiagamesinfo", gamesinfo_command))
+                app.add_handler(CommandHandler("play3xiaadmgamesinfo", admgamesinfo_command))
+                
+                # Игра "Угадай слово" - версия play3x  
+                app.add_handler(CommandHandler("play3xwordadd", wordadd_command))
+                app.add_handler(CommandHandler("play3xwordedit", wordedit_command))
+                app.add_handler(CommandHandler("play3xwordclear", wordclear_command))
+                app.add_handler(CommandHandler("play3xwordon", wordon_command))
+                app.add_handler(CommandHandler("play3xwordoff", wordoff_command))
+                app.add_handler(CommandHandler("play3xanstimeset", anstimeset_command))
+                app.add_handler(CommandHandler("play3xsay", game_say_command))
+                app.add_handler(CommandHandler("play3xwordinfo", wordinfo_command))
+                app.add_handler(CommandHandler("play3xgamesinfo", gamesinfo_command))
+                app.add_handler(CommandHandler("play3xadmgamesinfo", admgamesinfo_command))
+                
+                # Игра "Угадай слово" - версия playxxx
+                app.add_handler(CommandHandler("playxxxwordadd", wordadd_command))
+                app.add_handler(CommandHandler("playxxxwordedit", wordedit_command))
+                app.add_handler(CommandHandler("playxxxwordclear", wordclear_command))
+                app.add_handler(CommandHandler("playxxxwordon", wordon_command))
+                app.add_handler(CommandHandler("playxxxwordoff", wordoff_command))
+                app.add_handler(CommandHandler("playxxxanstimeset", anstimeset_command))
+                app.add_handler(CommandHandler("playxxxsay", game_say_command))
+                app.add_handler(CommandHandler("playxxxwordinfo", wordinfo_command))
+                app.add_handler(CommandHandler("playxxxgamesinfo", gamesinfo_command))
+                app.add_handler(CommandHandler("playxxxadmgamesinfo", admgamesinfo_command))
+                
+                # Розыгрыш - версия play3xia
+                app.add_handler(CommandHandler("play3xiaroll", roll_participant_command))
+                app.add_handler(CommandHandler("play3xiamynumber", mynumber_command))
+                app.add_handler(CommandHandler("play3xiarollreset", rollreset_command))
+                app.add_handler(CommandHandler("play3xiarollstatus", rollstatus_command))
+                
+                # Розыгрыш - версия play3x
+                app.add_handler(CommandHandler("play3xroll", roll_participant_command))
+                app.add_handler(CommandHandler("play3xmynumber", mynumber_command))
+                app.add_handler(CommandHandler("play3xrollreset", rollreset_command))
+                app.add_handler(CommandHandler("play3xrollstatus", rollstatus_command))
+                
+                # Розыгрыш - версия playxxx
+                app.add_handler(CommandHandler("playxxxroll", roll_participant_command))
+                app.add_handler(CommandHandler("playxxxmynumber", mynumber_command))
+                app.add_handler(CommandHandler("playxxxrollreset", rollreset_command))
+                app.add_handler(CommandHandler("playxxxrollstatus", rollstatus_command))
+                
+                # Специальная обработка для админского /roll с количеством победителей
+                # Эти команды обрабатываются той же функцией, но логика внутри определяет режим
+                app.add_handler(CommandHandler("play3xiaroll", self._handle_admin_roll))
+                app.add_handler(CommandHandler("play3xroll", self._handle_admin_roll))
+                app.add_handler(CommandHandler("playxxxroll", self._handle_admin_roll))
+                
+                logger.info("Games command handlers added")
             
             # Callback query handlers
             app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^menu:"))
@@ -172,6 +260,20 @@ class TrixBot:
             logger.error(f"Error adding handlers: {e}")
             raise
     
+    async def _handle_admin_roll(self, update, context):
+        """Handle admin roll command vs user roll command"""
+        user_id = update.effective_user.id
+        
+        # Если есть аргументы и это админ, и аргумент - число от 1 до 5
+        if (Config.is_admin(user_id) and context.args and 
+            len(context.args) == 1 and context.args[0].isdigit() and 
+            1 <= int(context.args[0]) <= 5):
+            # Это админская команда для проведения розыгрыша
+            await roll_draw_command(update, context)
+        else:
+            # Это обычная команда участника для получения номера
+            await roll_participant_command(update, context)
+    
     async def _handle_text_message(self, update, context):
         """Route text messages to appropriate handler"""
         try:
@@ -180,7 +282,7 @@ class TrixBot:
             
             logger.debug(f"Text message from user {user_id}, waiting_for: {waiting_for}")
             
-            # НОВОЕ: Проверяем, если это модератор и он отправляет ответ на заявку
+            # Проверяем, если это модератор и он отправляет ответ на заявку
             if MODERATION_HANDLER_AVAILABLE and Config.is_moderator(user_id):
                 mod_waiting_for = context.user_data.get('mod_waiting_for')
                 if mod_waiting_for in ['approve_link', 'reject_reason']:
