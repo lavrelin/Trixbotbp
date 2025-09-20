@@ -21,49 +21,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Основные импорты
-# Добавьте эти строки в ваш main.py
-
-# В секции импортов добавьте:
-try:
-    from handlers.admin_handler import (
-        admin_command, 
-        stats_command,
-        broadcast_command,
-        handle_admin_callback,
-        say_command,          # НОВОЕ
-        confirm_broadcast_command  # НОВОЕ
-    )
-    ADMIN_HANDLERS_AVAILABLE = True
-    logger.info("Admin handlers loaded")
-except ImportError as e:
-    logger.warning(f"Admin handlers not available: {e}")
-    ADMIN_HANDLERS_AVAILABLE = False
-
-# В функции _add_handlers добавьте команды:
-def _add_handlers(self):
-    """Add all command and callback handlers"""
-    if not CORE_HANDLERS_AVAILABLE:
-        logger.error("Core handlers not available - bot cannot function properly")
-        return
-        
-    app = self.application
-    
-    try:
-        # Command handlers
-        app.add_handler(CommandHandler("start", start_command))
-        app.add_handler(CommandHandler("help", help_command))
-        logger.info("Basic command handlers added")
-        
-        # Admin handlers (если доступны)
-        if ADMIN_HANDLERS_AVAILABLE:
-            app.add_handler(CommandHandler("admin", admin_command))
-            app.add_handler(CommandHandler("stats", stats_command))
-            app.add_handler(CommandHandler("broadcast", broadcast_command))
-            app.add_handler(CommandHandler("say", say_command))  # НОВОЕ
-            app.add_handler(CommandHandler("confirm_broadcast", confirm_broadcast_command))  # НОВОЕ
-            logger.info("Admin command handlers added")
-        
-        # ... остальные handlers как были ...
 try:
     from handlers.start_handler import start_command, help_command
     from handlers.menu_handler import handle_menu_callback
