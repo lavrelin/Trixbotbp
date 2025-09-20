@@ -46,7 +46,9 @@ try:
         admin_command, stats_command, say_command,
         id_command, whois_command, translate_command, weather_command,
         join_command, participants_command, report_command,
-        ban_command, unban_command, admcom_command, handle_admin_callback
+        ban_command, unban_command, admcom_command, handle_admin_callback,
+        # Новые команды для ссылок
+        trixlinks_command, trixlinksadd_command, trixlinksedit_command, trixlinksdelete_command
     )
     ADMIN_HANDLERS_AVAILABLE = True
     logger.info("Admin handlers loaded")
@@ -156,6 +158,11 @@ class TrixBot:
                 app.add_handler(CommandHandler("ban", ban_command))
                 app.add_handler(CommandHandler("unban", unban_command))
                 app.add_handler(CommandHandler("admcom", admcom_command))
+                # Новые команды для ссылок
+                app.add_handler(CommandHandler("trixlinks", trixlinks_command))
+                app.add_handler(CommandHandler("trixlinksadd", trixlinksadd_command))
+                app.add_handler(CommandHandler("trixlinksedit", trixlinksedit_command))
+                app.add_handler(CommandHandler("trixlinksdelete", trixlinksdelete_command))
                 logger.info("Admin command handlers added")
             
             # Игровые команды
@@ -197,28 +204,22 @@ class TrixBot:
                 app.add_handler(CommandHandler("playxxxadmgamesinfo", admgamesinfo_command))
                 
                 # Розыгрыш - версия play3xia
-                app.add_handler(CommandHandler("play3xiaroll", roll_participant_command))
+                app.add_handler(CommandHandler("play3xiaroll", self._handle_admin_roll))
                 app.add_handler(CommandHandler("play3xiamynumber", mynumber_command))
                 app.add_handler(CommandHandler("play3xiarollreset", rollreset_command))
                 app.add_handler(CommandHandler("play3xiarollstatus", rollstatus_command))
                 
                 # Розыгрыш - версия play3x
-                app.add_handler(CommandHandler("play3xroll", roll_participant_command))
+                app.add_handler(CommandHandler("play3xroll", self._handle_admin_roll))
                 app.add_handler(CommandHandler("play3xmynumber", mynumber_command))
                 app.add_handler(CommandHandler("play3xrollreset", rollreset_command))
                 app.add_handler(CommandHandler("play3xrollstatus", rollstatus_command))
                 
                 # Розыгрыш - версия playxxx
-                app.add_handler(CommandHandler("playxxxroll", roll_participant_command))
+                app.add_handler(CommandHandler("playxxxroll", self._handle_admin_roll))
                 app.add_handler(CommandHandler("playxxxmynumber", mynumber_command))
                 app.add_handler(CommandHandler("playxxxrollreset", rollreset_command))
                 app.add_handler(CommandHandler("playxxxrollstatus", rollstatus_command))
-                
-                # Специальная обработка для админского /roll с количеством победителей
-                # Эти команды обрабатываются той же функцией, но логика внутри определяет режим
-                app.add_handler(CommandHandler("play3xiaroll", self._handle_admin_roll))
-                app.add_handler(CommandHandler("play3xroll", self._handle_admin_roll))
-                app.add_handler(CommandHandler("playxxxroll", self._handle_admin_roll))
                 
                 logger.info("Games command handlers added")
             
@@ -247,7 +248,7 @@ class TrixBot:
             ))
             logger.info("Media handler added")
             
-            # Text handler - активация любым сообщением
+            # ИСПРАВЛЕНО: Text handler только для активных состояний
             app.add_handler(MessageHandler(
                 filters.TEXT & ~filters.COMMAND,
                 self._handle_text_message
@@ -275,7 +276,7 @@ class TrixBot:
             await roll_participant_command(update, context)
     
     async def _handle_text_message(self, update, context):
-        """Route text messages to appropriate handler"""
+        """Route text messages to appropriate handler - ИСПРАВЛЕНО"""
         try:
             user_id = update.effective_user.id
             waiting_for = context.user_data.get('waiting_for')
@@ -289,44 +290,23 @@ class TrixBot:
                     await handle_moderation_text(update, context)
                     return
             
+            # ИСПРАВЛЕНО: Если нет активного состояния ожидания, НЕ показываем меню
+            if not waiting_for:
+                # Просто игнорируем сообщение или показываем справку
+                await update.message.reply_text(
+                    "Используйте команду /start для начала работы с ботом"
+                )
+                return
+            
             # Проверяем, если бот ожидает медиа, а пользователь отправил текст
             if waiting_for == 'piar_photo':
-                await update.message.reply_text("📷 Пожалуйста, отправьте фото или видео, либо нажмите кнопку 'Дальше' для продолжения")
+                await update.message.reply_text("Пожалуйста, отправьте фото или видео, либо нажмите кнопку 'Дальше' для продолжения")
                 return
             elif waiting_for == 'post_photo':
-                await update.message.reply_text("📷 Пожалуйста, отправьте фото или видео для вашей публикации")
+                await update.message.reply_text("Пожалуйста, отправьте фото или видео для вашей публикации")
                 return
             
-            if not waiting_for:
-                if DB_AVAILABLE:
-                    try:
-                        from services.db import db
-                        from models import User
-                        from sqlalchemy import select
-                        
-                        async with db.get_session() as session:
-                            result = await session.execute(
-                                select(User).where(User.id == user_id)
-                            )
-                            user = result.scalar_one_or_none()
-                            
-                            if not user:
-                                await start_command(update, context)
-                                return
-                            else:
-                                from handlers.start_handler import show_main_menu
-                                await show_main_menu(update, context)
-                                return
-                    except Exception as e:
-                        logger.error(f"Error checking user in DB: {e}")
-                        from handlers.start_handler import show_main_menu
-                        await show_main_menu(update, context)
-                        return
-                else:
-                    from handlers.start_handler import show_main_menu
-                    await show_main_menu(update, context)
-                    return
-            
+            # Обрабатываем активные состояния
             if waiting_for == 'post_text':
                 await handle_text_input(update, context)
             elif waiting_for.startswith('piar_'):
@@ -334,18 +314,18 @@ class TrixBot:
                 await handle_piar_text(update, context, field, update.message.text)
             elif waiting_for == 'cancel_reason':
                 await handle_text_input(update, context)
+            elif waiting_for in ['trixlinks_waiting_name', 'trixlinks_waiting_url', 'trixlinks_waiting_edit']:
+                # Обработка команд ссылок
+                if ADMIN_HANDLERS_AVAILABLE:
+                    from handlers.admin_handler import handle_trixlinks_text
+                    await handle_trixlinks_text(update, context)
             else:
                 logger.warning(f"Unhandled waiting_for state: {waiting_for}")
-                from handlers.start_handler import show_main_menu
-                await show_main_menu(update, context)
+                await update.message.reply_text("Неизвестное состояние. Используйте /start")
                 
         except Exception as e:
             logger.error(f"Error handling text message: {e}")
-            try:
-                from handlers.start_handler import show_main_menu
-                await show_main_menu(update, context)
-            except:
-                await update.message.reply_text("Произошла ошибка. Попробуйте /start")
+            await update.message.reply_text("Произошла ошибка. Попробуйте /start")
     
     async def _handle_media_message(self, update, context):
         """Route media messages to appropriate handler"""
@@ -354,22 +334,26 @@ class TrixBot:
             
             logger.debug(f"Media message, waiting_for: {waiting_for}")
             
-            # Проверяем, если бот ожидает текст, а пользователь отправил медиа
-            if waiting_for and waiting_for.startswith('piar_') and waiting_for != 'piar_photo':
-                await update.message.reply_text("💭 Пожалуйста, добавьте текст как указано в инструкции")
-                return
-            elif waiting_for == 'post_text':
-                await update.message.reply_text("📝 Пожалуйста, сначала добавьте текст для вашей публикации")
+            # Если нет активного состояния ожидания, игнорируем
+            if not waiting_for:
+                await update.message.reply_text("Для загрузки медиа используйте соответствующий раздел в меню")
                 return
             
+            # Проверяем, если бот ожидает текст, а пользователь отправил медиа
+            if waiting_for and waiting_for.startswith('piar_') and waiting_for != 'piar_photo':
+                await update.message.reply_text("Пожалуйста, добавьте текст как указано в инструкции")
+                return
+            elif waiting_for == 'post_text':
+                await update.message.reply_text("Пожалуйста, сначала добавьте текст для вашей публикации")
+                return
+            
+            # Обрабатываем медиа в активных состояниях
             if 'post_data' in context.user_data:
                 await handle_media_input(update, context)
             elif waiting_for == 'piar_photo':
                 await handle_piar_photo(update, context)
             elif update.message.caption and waiting_for:
                 await self._handle_text_message(update, context)
-            else:
-                await update.message.reply_text("📷 Для загрузки медиа используйте соответствующий раздел в меню")
                 
         except Exception as e:
             logger.error(f"Error handling media message: {e}")
