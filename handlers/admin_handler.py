@@ -665,3 +665,306 @@ async def handle_trixlinks_text(update: Update, context: ContextTypes.DEFAULT_TY
         if not adding_data:
             await update.message.reply_text("❌ Ошибка: данные не найдены")
             return
+            # ДОБАВЬТЕ ЭТИ ФУНКЦИИ В КОНЕЦ ФАЙЛА handlers/admin_handler.py
+
+# ============= СИСТЕМА УПРАВЛЕНИЯ ССЫЛКАМИ =============
+
+# В памяти храним ссылки (в реальном проекте используйте базу данных)
+trix_links = [
+    {
+        'id': 1,
+        'name': 'Канал Будапешт',
+        'url': 'https://t.me/snghu',
+        'description': 'Основной канал сообщества Будапешта'
+    },
+    {
+        'id': 2,
+        'name': 'Чат Будапешт',
+        'url': 'https://t.me/tgchatxxx',
+        'description': 'Чат для общения участников сообщества'
+    },
+    {
+        'id': 3,
+        'name': 'Каталог услуг',
+        'url': 'https://t.me/trixvault',
+        'description': 'Каталог услуг и специалистов Будапешта'
+    },
+    {
+        'id': 4,
+        'name': 'Барахолка',
+        'url': 'https://t.me/hungarytrade',
+        'description': 'Купля, продажа, обмен товаров'
+    }
+]
+
+async def trixlinks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать все ссылки - доступно всем"""
+    if not trix_links:
+        await update.message.reply_text("📂 Список ссылок пуст")
+        return
+    
+    text = "🔗 **ПОЛЕЗНЫЕ ССЫЛКИ TRIX:**\n\n"
+    
+    for i, link in enumerate(trix_links, 1):
+        text += f"{i}. **{link['name']}**\n"
+        text += f"🔗 {link['url']}\n"
+        text += f"📝 {link['description']}\n\n"
+    
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+async def trixlinksadd_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Добавить ссылку - только админы"""
+    if not Config.is_admin(update.effective_user.id):
+        await update.message.reply_text("❌ У вас нет прав для использования этой команды")
+        return
+    
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "📝 **Использование:**\n"
+            "`/trixlinksadd название описание`\n\n"
+            "**Пример:**\n"
+            "`/trixlinksadd \"Новый канал\" \"Описание нового канала\"`\n\n"
+            "После этого бот попросит ввести ссылку.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # Парсим название и описание
+    if len(context.args) == 2:
+        name = context.args[0].strip('"')
+        description = context.args[1].strip('"')
+    else:
+        # Если больше 2 аргументов, объединяем все кроме первого в описание
+        name = context.args[0].strip('"')
+        description = ' '.join(context.args[1:]).strip('"')
+    
+    # Сохраняем данные для следующего шага
+    context.user_data['trixlinks_adding'] = {
+        'name': name,
+        'description': description
+    }
+    context.user_data['waiting_for'] = 'trixlinks_waiting_url'
+    
+    await update.message.reply_text(
+        f"✅ **Данные сохранены:**\n\n"
+        f"📝 Название: {name}\n"
+        f"📋 Описание: {description}\n\n"
+        f"🔗 **Теперь отправьте ссылку:**\n"
+        f"(Например: https://t.me/example)",
+        parse_mode='Markdown'
+    )
+
+async def trixlinksedit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Редактировать ссылку - только админы"""
+    if not Config.is_admin(update.effective_user.id):
+        await update.message.reply_text("❌ У вас нет прав для использования этой команды")
+        return
+    
+    if not context.args or not context.args[0].isdigit():
+        # Показываем список для выбора
+        if not trix_links:
+            await update.message.reply_text("📂 Список ссылок пуст")
+            return
+        
+        text = "📝 **РЕДАКТИРОВАНИЕ ССЫЛОК**\n\n"
+        text += "Используйте: `/trixlinksedit ID`\n\n"
+        text += "**Доступные ссылки:**\n"
+        
+        for link in trix_links:
+            text += f"{link['id']}. {link['name']}\n"
+        
+        await update.message.reply_text(text, parse_mode='Markdown')
+        return
+    
+    link_id = int(context.args[0])
+    
+    # Ищем ссылку
+    link_to_edit = None
+    for link in trix_links:
+        if link['id'] == link_id:
+            link_to_edit = link
+            break
+    
+    if not link_to_edit:
+        await update.message.reply_text(f"❌ Ссылка с ID {link_id} не найдена")
+        return
+    
+    # Если есть дополнительные аргументы, обновляем сразу
+    if len(context.args) >= 3:
+        new_name = context.args[1].strip('"')
+        new_description = ' '.join(context.args[2:]).strip('"')
+        
+        link_to_edit['name'] = new_name
+        link_to_edit['description'] = new_description
+        
+        await update.message.reply_text(
+            f"✅ **Ссылка обновлена:**\n\n"
+            f"🆔 ID: {link_id}\n"
+            f"📝 Новое название: {new_name}\n"
+            f"📋 Новое описание: {new_description}\n"
+            f"🔗 Ссылка: {link_to_edit['url']}",
+            parse_mode='Markdown'
+        )
+    else:
+        # Показываем текущие данные и запрашиваем новые
+        context.user_data['trixlinks_editing'] = link_id
+        context.user_data['waiting_for'] = 'trixlinks_waiting_edit'
+        
+        await update.message.reply_text(
+            f"📝 **Редактирование ссылки ID {link_id}:**\n\n"
+            f"📝 Текущее название: {link_to_edit['name']}\n"
+            f"📋 Текущее описание: {link_to_edit['description']}\n"
+            f"🔗 Ссылка: {link_to_edit['url']}\n\n"
+            f"**Отправьте новые данные в формате:**\n"
+            f"`название | описание | ссылка`\n\n"
+            f"**Пример:**\n"
+            f"`Новое название | Новое описание | https://t.me/new`",
+            parse_mode='Markdown'
+        )
+
+async def trixlinksdelete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Удалить ссылку - только админы"""
+    if not Config.is_admin(update.effective_user.id):
+        await update.message.reply_text("❌ У вас нет прав для использования этой команды")
+        return
+    
+    if not context.args or not context.args[0].isdigit():
+        # Показываем список для выбора
+        if not trix_links:
+            await update.message.reply_text("📂 Список ссылок пуст")
+            return
+        
+        text = "🗑️ **УДАЛЕНИЕ ССЫЛОК**\n\n"
+        text += "Используйте: `/trixlinksdelete ID`\n\n"
+        text += "**Доступные ссылки:**\n"
+        
+        for link in trix_links:
+            text += f"{link['id']}. {link['name']}\n"
+        
+        await update.message.reply_text(text, parse_mode='Markdown')
+        return
+    
+    link_id = int(context.args[0])
+    
+    # Ищем и удаляем ссылку
+    link_to_delete = None
+    for i, link in enumerate(trix_links):
+        if link['id'] == link_id:
+            link_to_delete = trix_links.pop(i)
+            break
+    
+    if link_to_delete:
+        await update.message.reply_text(
+            f"✅ **Ссылка удалена:**\n\n"
+            f"📝 Название: {link_to_delete['name']}\n"
+            f"🔗 URL: {link_to_delete['url']}\n"
+            f"📋 Описание: {link_to_delete['description']}",
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text(f"❌ Ссылка с ID {link_id} не найдена")
+
+async def handle_trixlinks_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка текстового ввода для команд ссылок"""
+    waiting_for = context.user_data.get('waiting_for')
+    text = update.message.text.strip()
+    
+    if waiting_for == 'trixlinks_waiting_url':
+        # Добавляем URL к новой ссылке
+        adding_data = context.user_data.get('trixlinks_adding')
+        
+        if not adding_data:
+            await update.message.reply_text("❌ Ошибка: данные не найдены")
+            return
+        
+        # Проверяем валидность URL
+        if not (text.startswith('http://') or text.startswith('https://')):
+            await update.message.reply_text(
+                "❌ Неверный формат ссылки. Ссылка должна начинаться с http:// или https://\n\n"
+                "Попробуйте еще раз:"
+            )
+            return
+        
+        # Генерируем новый ID
+        new_id = max([link['id'] for link in trix_links], default=0) + 1
+        
+        # Добавляем ссылку
+        new_link = {
+            'id': new_id,
+            'name': adding_data['name'],
+            'url': text,
+            'description': adding_data['description']
+        }
+        
+        trix_links.append(new_link)
+        
+        # Очищаем временные данные
+        context.user_data.pop('trixlinks_adding', None)
+        context.user_data.pop('waiting_for', None)
+        
+        await update.message.reply_text(
+            f"✅ **Ссылка добавлена:**\n\n"
+            f"🆔 ID: {new_id}\n"
+            f"📝 Название: {adding_data['name']}\n"
+            f"🔗 URL: {text}\n"
+            f"📋 Описание: {adding_data['description']}",
+            parse_mode='Markdown'
+        )
+        
+    elif waiting_for == 'trixlinks_waiting_edit':
+        # Редактируем существующую ссылку
+        link_id = context.user_data.get('trixlinks_editing')
+        
+        if not link_id:
+            await update.message.reply_text("❌ Ошибка: ID ссылки не найден")
+            return
+        
+        # Парсим данные в формате: название | описание | ссылка
+        parts = [part.strip() for part in text.split('|')]
+        
+        if len(parts) != 3:
+            await update.message.reply_text(
+                "❌ Неверный формат. Используйте:\n"
+                "`название | описание | ссылка`\n\n"
+                "Попробуйте еще раз:"
+            )
+            return
+        
+        new_name, new_description, new_url = parts
+        
+        # Проверяем валидность URL
+        if not (new_url.startswith('http://') or new_url.startswith('https://')):
+            await update.message.reply_text(
+                "❌ Неверный формат ссылки. Ссылка должна начинаться с http:// или https://\n\n"
+                "Попробуйте еще раз:"
+            )
+            return
+        
+        # Ищем и обновляем ссылку
+        link_updated = False
+        for link in trix_links:
+            if link['id'] == link_id:
+                link['name'] = new_name
+                link['description'] = new_description
+                link['url'] = new_url
+                link_updated = True
+                break
+        
+        if link_updated:
+            # Очищаем временные данные
+            context.user_data.pop('trixlinks_editing', None)
+            context.user_data.pop('waiting_for', None)
+            
+            await update.message.reply_text(
+                f"✅ **Ссылка обновлена:**\n\n"
+                f"🆔 ID: {link_id}\n"
+                f"📝 Название: {new_name}\n"
+                f"🔗 URL: {new_url}\n"
+                f"📋 Описание: {new_description}",
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text(f"❌ Ссылка с ID {link_id} не найдена")
+    
+    else:
+        await update.message.reply_text("❌ Неизвестное состояние обработки ссылок")
