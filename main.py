@@ -1581,7 +1581,7 @@ def main():
     application.run_polling(allowed_updates=['message', 'callback_query'])
 
 if __name__ == '__main__':
-    main()ден")
+    main()
 
 async def unban_command(update, context):
     """Разблокировать пользователя"""
@@ -1651,12 +1651,4 @@ async def mute_command(update, context):
         mute_until = datetime.now() + timedelta(seconds=seconds)
         user_data[target_id]['muted_until'] = mute_until
         
-        await update.message.reply_text(
-            f"🔇 **Пользователь замучен:**\n\n"
-            f"👤 Пользователь: {target}\n"
-            f"⏰ До: {mute_until.strftime('%d.%m.%Y %H:%M')}\n"
-            f"🕐 Длительность: {time_str}",
-            parse_mode='Markdown'
-        )
-    else:
-        await update.message.reply_text("❌ Пользователь не най
+        await update.message.reply_text("❌ Пользователь не найден")
